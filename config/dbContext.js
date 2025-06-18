@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const mongoURI = "mongodb://localhost:27017/SneakeUp";
+const mongoURI = process.env.MONGOOSE_URL;
 const initializeData = require('./initializeData');
 const initializeSizes = require('./initializeDataSizes');
 const initializeColors = require('./initializeColors');
