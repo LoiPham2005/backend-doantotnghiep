@@ -4,6 +4,7 @@ var router = express.Router();
 var userController = require('../controllers/user.controller');
 var mdw = require('../middleware/middleware');
 var forgotPassword = require('../controllers/forgotPassword.controller');
+var bannerController = require('../controllers/banner.controller');
 var categoryController = require('../controllers/category.controller');
 var brand = require('../controllers/brand.controller');
 var cartController = require('../controllers/carts.controller');
@@ -39,12 +40,19 @@ router.patch('/users/edit/:id', mdw.api_auth, upload.single('avatar'), userContr
 router.get('/users/getAdmin', mdw.api_auth, userController.getAdmin);
 router.put('/users/change-password/:id', mdw.api_auth, userController.changePassword);
 router.get('/users/search', mdw.api_auth, userController.searchUsers);
+router.put('/users/toggle-active/:id', mdw.api_auth, userController.toggleUserActive);
 
 // quên mật khẩu
 router.post('/check/sendOtp', forgotPassword.sendOtp);
 router.post('/check/checkOTP', forgotPassword.checkOtpValidity);
 router.put('/check/reset-password/:email', forgotPassword.resetPassword);
 router.delete('/check/deleteOTP/:email', forgotPassword.deleteOtp);
+
+// API banner
+router.post('/banner/add', mdw.api_auth, upload.single('media'), bannerController.add);
+router.get('/banner/list', bannerController.list);
+router.put('/banner/edit/:id', mdw.api_auth, bannerController.edit);
+router.delete('/banner/delete/:id', mdw.api_auth, bannerController.delete);
 
 // thêm sửa xoá hiển thị category
 router.post('/category/add', mdw.api_auth, upload.single('media'), categoryController.add);
@@ -53,6 +61,7 @@ router.get('/category/getbyid/:id', categoryController.getbyid);
 router.put('/category/edit/:id', mdw.api_auth, upload.single('media'), categoryController.edit);
 router.delete('/category/delete/:id', mdw.api_auth, categoryController.delete);
 router.get('/category/search', categoryController.search);
+router.put('/category/toggle-active/:id', mdw.api_auth, categoryController.toggleActive);
 
 // thêm sửa xoá hiển thị brand
 router.post('/brand/add', mdw.api_auth, upload.single('media'), brand.add);
@@ -61,14 +70,22 @@ router.get('/brand/getbyid/:id', brand.getbyid);
 router.put('/brand/edit/:id', mdw.api_auth, upload.single('media'), brand.edit);
 router.delete('/brand/delete/:id', mdw.api_auth, brand.delete);
 router.get('/brand/search', brand.search);
+router.put('/brand/toggle-active/:id', mdw.api_auth, brand.toggleActive);
 
 // API quản lý sản phẩm
-router.post('/shoes/add', mdw.api_auth, upload.array('media', 10), shoesController.addShoes);
+router.get('/shoes/filter-by-brand-category', shoesController.getShoesByBrandAndCategory); // Di chuyển lên trên
+router.get('/shoes/top-selling', shoesController.getTopSellingProducts);
 router.get('/shoes/list', shoesController.getAllShoes);
+router.get('/shoes/list-web', shoesController.getAllShoesWeb);
+router.get('/shoes/search', shoesController.searchShoes); // Thêm route tìm kiếm sản phẩm
 router.get('/shoes/filter', shoesController.filterShoes);
-router.get('/shoes/:id', shoesController.getShoeById);
+router.get('/shoes/filterShoesAZ', shoesController.filterShoesAZ);
+
+router.post('/shoes/add', mdw.api_auth, upload.array('media', 10), shoesController.addShoes);
+router.get('/shoes/:id', shoesController.getShoeById); // Di chuyển xuống dưới
 router.put('/shoes/edit/:id', mdw.api_auth, upload.array('media', 10), shoesController.updateShoe);
 router.delete('/shoes/delete/:id', mdw.api_auth, shoesController.deleteShoe);
+router.get('/shoes/similar/:id', shoesController.getSimilarProducts);
 
 // API quản lý variants
 router.post('/variants/add', mdw.api_auth, shoesVariantController.addVariant);
@@ -117,6 +134,7 @@ router.get('/posts/list', postsController.getAllPosts);
 router.get('/posts/getbyid/:id', postsController.getPostById);
 router.put('/posts/edit/:id', mdw.api_auth, upload.array('media', 10), postsController.updatePost);
 router.delete('/posts/delete/:id', mdw.api_auth, postsController.deletePost);
+router.get('/posts/search', mdw.api_auth, postsController.searchPosts);
 
 // API quản lý voucher
 router.post('/vouchers/add', mdw.api_auth, vouchersController.createVoucher);
@@ -124,6 +142,7 @@ router.get('/vouchers/list', vouchersController.getAllVouchers);
 router.get('/vouchers/available', vouchersController.getAvailableVouchers);
 router.put('/vouchers/edit/:id', mdw.api_auth, vouchersController.updateVoucher);
 router.delete('/vouchers/delete/:id', mdw.api_auth, vouchersController.deleteVoucher);
+router.get('/vouchers/search', vouchersController.searchVouchers); // Thêm route search
 
 // API quản lý voucher của user
 router.post('/user-vouchers/save', mdw.api_auth, userVouchersController.saveVoucherToUser);
@@ -137,6 +156,7 @@ router.post('/notifications/add', mdw.api_auth, notificationsController.createNo
 router.get('/notifications/list', notificationsController.getAllNotifications);
 router.put('/notifications/update/:id', mdw.api_auth, notificationsController.updateNotification);
 router.delete('/notifications/delete/:id', mdw.api_auth, notificationsController.deleteNotification);
+router.get('/notifications/search', mdw.api_auth, notificationsController.searchNotifications);
 
 // API quản lý thông báo của user
 router.post('/notifications/user/add', mdw.api_auth, notificationUsersController.createUserNotification);
@@ -147,6 +167,9 @@ router.put('/notifications/read-all/:user_id', mdw.api_auth, notificationUsersCo
 router.delete('/notifications/user/:user_id/:notification_id', mdw.api_auth, notificationUsersController.deleteUserNotification);
 router.get('/notifications/:notification_id/users', mdw.api_auth, notificationUsersController.getUsersByNotificationId);
 
+// Thêm route cho admin notifications
+router.get('/notifications/admin', mdw.api_auth, notificationUsersController.getAdminNotifications);
+
 // API quản lý đơn hàng
 router.post('/orders/add', mdw.api_auth, ordersController.createOrder);
 router.post('/orders-details/add', mdw.api_auth, ordersController.createOrderDetails);
@@ -154,6 +177,7 @@ router.get('/orders/list', mdw.api_auth, ordersController.getAllOrders);
 router.get('/orders/getbyid/:id', mdw.api_auth, ordersController.getOrderById);
 router.put('/orders/status/:id', mdw.api_auth, ordersController.updateOrderStatus);
 router.get('/orders/user/:user_id', mdw.api_auth, ordersController.getUserOrders);
+router.get('/orders/search', mdw.api_auth, ordersController.searchOrders);
 
 // API quản lý lịch sử thanh toán
 router.post('/payment-history/add', mdw.api_auth, paymentHistoryController.createPaymentHistory);
@@ -161,14 +185,15 @@ router.get('/payment-history/list', mdw.api_auth, paymentHistoryController.getAl
 router.get('/payment-history/:id', mdw.api_auth, paymentHistoryController.getPaymentById);
 router.get('/payment-history/user/:user_id', mdw.api_auth, paymentHistoryController.getUserPaymentHistory);
 router.get('/payment-history/statistics', mdw.api_auth, paymentHistoryController.getPaymentStatistics);
+router.get('/payment-history/search', mdw.api_auth, paymentHistoryController.searchPaymentHistory);
 
 // Thanh toán ví Momo
 router.post('/momo/create', mdw.api_auth, momo.createPayment);
 router.post('/momo/callback', momo.handleCallback);
 
 // API quản lý đánh giá
-router.post('/reviews/add', mdw.api_auth, upload.array('media', 5), reviewsController.createReview);
 router.get('/reviews/product/:product_id', reviewsController.getProductReviews);
+router.post('/reviews/add', mdw.api_auth, upload.array('media', 5), reviewsController.createReview);
 router.get('/reviews/user/:user_id', mdw.api_auth, reviewsController.getUserReviews);
 router.put('/reviews/verify/:id', mdw.api_auth, reviewsController.verifyReview);
 router.delete('/reviews/:id', mdw.api_auth, reviewsController.deleteReview);
@@ -192,5 +217,12 @@ router.get('/statistics/daily', mdw.api_auth, statisticsController.getDailyStats
 router.get('/statistics/revenue', mdw.api_auth, statisticsController.getRevenueByDateRange);
 router.get('/statistics/top-products', mdw.api_auth, statisticsController.getTopProducts);
 router.get('/statistics/top-customers', mdw.api_auth, statisticsController.getTopCustomers);
+
+// Thêm routes cho đánh dấu đã đọc thông báo
+router.put('/notifications/user/read/:notification_id', mdw.api_auth, notificationUsersController.markAsRead);
+router.put('/notifications/user/mark-all-read', mdw.api_auth, notificationUsersController.markAllAsRead);
+
+// Sửa route cho đánh dấu đã đọc thông báo
+router.put('/notifications/read/:notification_id', mdw.api_auth, notificationUsersController.markAsRead);
 
 module.exports = router;

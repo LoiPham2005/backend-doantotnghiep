@@ -1,6 +1,7 @@
 const PaymentHistory = require('../models/payment_history.model');
 const Order = require('../models/orders.model');
 const User = require('../models/user.model');
+const mongoose = require('mongoose');
 
 module.exports = {
     // Tạo lịch sử thanh toán mới
@@ -52,7 +53,7 @@ module.exports = {
     // Lấy tất cả lịch sử thanh toán (Admin)
     getAllPaymentHistory: async (req, res) => {
         try {
-            const { page = 1, limit = 10 } = req.query;
+            const { page = 1, limit = 1000 } = req.query;
 
             const payments = await PaymentHistory.find()
                 .populate('user_id', 'username email')
@@ -115,7 +116,7 @@ module.exports = {
     getUserPaymentHistory: async (req, res) => {
         try {
             const { user_id } = req.params;
-            const { page = 1, limit = 10 } = req.query;
+            const { page = 1, limit = 1000 } = req.query;
 
             const payments = await PaymentHistory.find({ user_id })
                 .populate('order_id')
@@ -182,6 +183,74 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy thống kê thanh toán",
+                error: error.message
+            });
+        }
+    },
+
+    // Tìm kiếm lịch sử thanh toán
+    searchPaymentHistory: async (req, res) => {
+        try {
+            const { keyword } = req.query;
+
+            // Xây dựng query tìm kiếm cơ bản
+            let query = {};
+
+            if (keyword) {
+                // Tìm users theo username hoặc email
+                const users = await User.find({
+                    $or: [
+                        { username: { $regex: keyword, $options: 'i' } },
+                        { email: { $regex: keyword, $options: 'i' } }
+                    ]
+                });
+
+                // Lấy user IDs
+                const userIds = users.map(user => user._id);
+
+                query.$or = [];
+
+                // Tìm theo user
+                if (userIds.length > 0) {
+                    query.$or.push({ user_id: { $in: userIds } });
+                }
+
+                // Tìm theo order ID nếu là ObjectId hợp lệ
+                if (mongoose.Types.ObjectId.isValid(keyword)) {
+                    query.$or.push({ order_id: new mongoose.Types.ObjectId(keyword) });
+                }
+
+                // Nếu không có điều kiện tìm kiếm nào khớp
+                if (query.$or.length === 0) {
+                    delete query.$or;
+                }
+            }
+
+            // Thực hiện tìm kiếm với populate
+            const payments = await PaymentHistory.find(query)
+                .populate({
+                    path: 'user_id',
+                    select: 'username email'
+                })
+                .populate({
+                    path: 'order_id',
+                    select: 'payment_method status'
+                })
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
+                status: 200,
+                message: "Kết quả tìm kiếm",
+                data: {
+                    payments
+                }
+            });
+
+        } catch (error) {
+            console.error("Error searching payment history:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi tìm kiếm lịch sử thanh toán",
                 error: error.message
             });
         }

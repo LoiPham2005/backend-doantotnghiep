@@ -188,4 +188,49 @@ module.exports = {
             });
         }
     }
+
+    // handleCallback: async (req, res) => {
+    //     try {
+    //         const {
+    //             partnerCode, orderId, requestId, amount, orderInfo, orderType, transId,
+    //             resultCode, message, payType, responseTime, extraData, signature
+    //         } = req.body;
+
+    //         const rawSignature = `accessKey=${momoConfig.accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${momoConfig.ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${momoConfig.redirectUrl}&requestId=${requestId}&requestType=captureWallet`;
+
+    //         const expectedSignature = crypto.createHmac('sha256', momoConfig.secretKey)
+    //             .update(rawSignature)
+    //             .digest('hex');
+
+    //         if (signature !== expectedSignature) {
+    //             return res.status(403).json({
+    //                 status: 403,
+    //                 message: "Chữ ký không hợp lệ. Callback bị từ chối."
+    //             });
+    //         }
+
+    //         if (resultCode === 0) {
+    //             // Update order status in DB here (paid = true, transId, etc)
+    //             res.status(200).json({
+    //                 status: 200,
+    //                 message: "Thanh toán thành công",
+    //                 data: { orderId, transId, amount }
+    //             });
+    //         } else {
+    //             res.status(400).json({
+    //                 status: 400,
+    //                 message: "Thanh toán thất bại",
+    //                 error: message
+    //             });
+    //         }
+
+    //     } catch (error) {
+    //         console.error("Error handling MoMo callback:", error);
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi xử lý callback",
+    //             error: error.message
+    //         });
+    //     }
+    // }
 };

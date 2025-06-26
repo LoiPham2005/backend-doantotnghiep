@@ -2,10 +2,10 @@ const ShoesVariant = require('../models/shoes_variant.model');
 const Shoes = require('../models/shoes.model');
 
 module.exports = {
-    // Thêm variant mới
+    // Thêm variant mới 
     addVariant: async (req, res) => {
         try {
-            const { shoes_id, price, quantity_in_stock, size_id, color_id } = req.body;
+            const { shoes_id, price, quantity_in_stock, size_id, color_id, status } = req.body; // Thêm status
 
             // Kiểm tra sản phẩm tồn tại
             const shoe = await Shoes.findById(shoes_id);
@@ -35,7 +35,8 @@ module.exports = {
                 price,
                 quantity_in_stock,
                 size_id,
-                color_id
+                color_id,
+                status: status || 'available' // Thêm status với giá trị mặc định
             });
 
             const savedVariant = await newVariant.save();
@@ -115,11 +116,15 @@ module.exports = {
     // Cập nhật variant
     updateVariant: async (req, res) => {
         try {
-            const { price, quantity_in_stock, status } = req.body;
+            const { price, quantity_in_stock, status } = req.body; // Thêm status
 
             const updatedVariant = await ShoesVariant.findByIdAndUpdate(
                 req.params.id,
-                { price, quantity_in_stock, status },
+                { 
+                    price, 
+                    quantity_in_stock,
+                    status // Thêm status vào update
+                },
                 { new: true }
             )
                 .populate('size_id')

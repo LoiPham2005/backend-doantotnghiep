@@ -209,5 +209,38 @@ module.exports = {
                 error: error.message
             });
         }
+    },
+
+    // Add new search method
+    searchPosts: async (req, res) => {
+        try {
+            const { keyword } = req.query;
+
+            let query = {};
+            if (keyword) {
+                query = {
+                    $or: [
+                        { title: { $regex: keyword, $options: 'i' } },
+                        { message: { $regex: keyword, $options: 'i' } }
+                    ]
+                };
+            }
+
+            const posts = await Posts.find(query)
+                .populate('admin_id', 'username')
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
+                status: 200,
+                message: "Kết quả tìm kiếm",
+                data: posts
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi tìm kiếm bài viết",
+                error: error.message
+            });
+        }
     }
 };

@@ -3,6 +3,9 @@ const jwt = require('jsonwebtoken');
 const md = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const User = require('../models/user.model');
+const path = require('path');
+const fs = require('fs');
+const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 
 // tạo toekn mới
 const generateAuthToken = (userId) => {
@@ -38,9 +41,66 @@ module.exports = {
         }
     },
 
+    // register: async (req, res) => {
+    //     try {
+    //         ///Tạo salt ngẫu nhiên để mã hóa mật khẩu
+    //         const salt = await bcrypt.genSalt(10);
+
+    //         // Tạo user mới
+    //         const user = new md({
+    //             username: req.body.username,
+    //             email: req.body.email,
+    //             password: req.body.password,
+    //         });
+
+    //         //Mã hóa mật khẩu với salt
+    //         user.password = await bcrypt.hash(user.password, salt);
+
+    //         // Tạo token xác thực cho user mới bằng hàm generateAuthToken
+    //         // user.accessToken = generateAuthToken(user._id);
+
+    //         const { accessToken, refreshToken } = generateAuthToken(user._id);
+    //         user.accessToken = accessToken;
+    //         user.refreshToken = refreshToken;
+
+    //         // Lưu user vào database      
+    //         const newUser = await user.save();
+    //         // res.status(200).json({ newUser });
+    //         // res.status(200).json({
+    //         //     user: newUser,
+    //         //     accessToken,
+    //         //     refreshToken
+    //         // });
+
+    //         res.json({
+    //             status: 200,
+    //             message: 'Đăng ký thành công',
+    //             user: newUser,
+    //             accessToken,
+    //             refreshToken
+    //         });
+
+    //     } catch (error) {
+    //         console.error(error);
+    //         res.status(400).json({ message: 'Registration failed' });
+    //     }
+    // },
+
     register: async (req, res) => {
         try {
-            ///Tạo salt ngẫu nhiên để mã hóa mật khẩu
+            // Kiểm tra xem username đã tồn tại chưa
+            const existingUsername = await md.findOne({ username: req.body.username });
+            if (existingUsername) {
+                return res.status(400).json({ message: 'Username đã tồn tại' });
+            }
+
+            // Kiểm tra xem email đã tồn tại chưa
+            const existingEmail = await md.findOne({ email: req.body.email });
+            if (existingEmail) {
+                return res.status(400).json({ message: 'Email đã tồn tại' });
+            }
+
+            // Tạo salt ngẫu nhiên để mã hóa mật khẩu
             const salt = await bcrypt.genSalt(10);
 
             // Tạo user mới
@@ -50,20 +110,20 @@ module.exports = {
                 password: req.body.password,
             });
 
-            //Mã hóa mật khẩu với salt
+            // Mã hóa mật khẩu
             user.password = await bcrypt.hash(user.password, salt);
 
-            // Tạo token xác thực cho user mới bằng hàm generateAuthToken
-            // user.accessToken = generateAuthToken(user._id);
-
+            // Tạo token
             const { accessToken, refreshToken } = generateAuthToken(user._id);
             user.accessToken = accessToken;
             user.refreshToken = refreshToken;
 
-            // Lưu user vào database      
+            // Lưu user
             const newUser = await user.save();
-            // res.status(200).json({ newUser });
-            res.status(200).json({
+
+            res.json({
+                status: 200,
+                message: 'Đăng ký thành công',
                 user: newUser,
                 accessToken,
                 refreshToken
@@ -75,16 +135,86 @@ module.exports = {
         }
     },
 
+
     // đăng nhập
+    // login: async (req, res) => {
+    //     try {
+    //         const { email, password, role } = req.body;
+
+    //         const user = await md.findOne({ email });
+    //         if (!user) {
+    //             return res.status(400).json({
+    //                 status: 400,
+    //                 message: 'Email không tồn tại'
+    //             });
+    //         }
+
+    //         const isMatch = await bcrypt.compare(password, user.password);
+    //         if (!isMatch) {
+    //             return res.status(400).json({
+    //                 status: 400,
+    //                 message: 'Mật khẩu không đúng'
+    //             });
+    //         }
+
+    //         // Chỉ kiểm tra role admin
+    //         if (user.role !== 'admin') {
+    //             return res.status(403).json({
+    //                 status: 403,
+    //                 message: 'Chỉ tài khoản Admin mới có thể đăng nhập vào trang quản trị'
+    //             });
+    //         }
+
+    //         const { accessToken, refreshToken } = generateAuthToken(user._id);
+    //         user.accessToken = accessToken;
+    //         user.refreshToken = refreshToken;
+
+    //         await user.save();
+
+    //         res.json({
+    //             status: 200,
+    //             message: 'Đăng nhập thành công',
+    //             user: {
+    //                 _id: user._id,
+    //                 username: user.username,
+    //                 email: user.email,
+    //                 role: user.role,
+    //                 avatar: user.avatar,
+    //                 sex: user.sex,
+    //                 phone: user.phone,
+    //                 birth_date: user.birth_date
+    //             },
+    //             accessToken,
+    //             refreshToken
+    //         });
+
+    //     } catch (error) {
+    //         console.error('Login error:', error);
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: 'Lỗi server',
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
     login: async (req, res) => {
         try {
-            const { email, password } = req.body;
+            const { email, password, platform } = req.body;
 
             const user = await md.findOne({ email });
             if (!user) {
                 return res.status(400).json({
                     status: 400,
                     message: 'Email không tồn tại'
+                });
+            }
+
+            // Kiểm tra trạng thái active của tài khoản
+            if (!user.is_active) {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Tài khoản đã bị vô hiệu hóa'
                 });
             }
 
@@ -96,13 +226,20 @@ module.exports = {
                 });
             }
 
-            // Chỉ kiểm tra role admin
-            // if (user.role !== 'admin') {
-            //     return res.status(403).json({
-            //         status: 403,
-            //         message: 'Chỉ tài khoản Admin mới có thể đăng nhập vào trang quản trị'
-            //     });
-            // }
+            // Kiểm tra platform và role
+            if (platform === 'web' && user.role !== 'admin') {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Chỉ tài khoản Admin mới có thể đăng nhập vào trang quản trị'
+                });
+            }
+
+            if (platform === 'mobile' && user.role !== 'user') {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Chỉ tài khoản User mới có thể đăng nhập vào ứng dụng'
+                });
+            }
 
             const { accessToken, refreshToken } = generateAuthToken(user._id);
             user.accessToken = accessToken;
@@ -121,7 +258,7 @@ module.exports = {
                     avatar: user.avatar,
                     sex: user.sex,
                     phone: user.phone,
-                    birth_date: user.birth_date
+                    birth_date: user.birthDate
                 },
                 accessToken,
                 refreshToken
@@ -136,6 +273,8 @@ module.exports = {
             });
         }
     },
+
+
 
     // New refresh token endpoint
     refreshToken: async (req, res) => {
@@ -178,7 +317,10 @@ module.exports = {
             user.accessToken = null;
             user.refreshToken = null;
             await user.save();
-            res.json({ message: 'User logged out successfully' });
+            res.json({
+                status: 200,
+                message: 'User logged out successfully'
+            });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: 'Server Error' });
@@ -198,12 +340,56 @@ module.exports = {
                 });
             }
 
-            let updateData = { ...req.body };
+            // Validate dữ liệu đầu vào
+            const updateData = {
+                username: req.body.username,
+                phone: req.body.phone,
+                sex: req.body.sex,
+                birthDate: req.body.birthDate
+            };
 
-            // Handle file upload if exists
-            if (req.file) {
-                updateData.avatar = `/uploads/${req.file.filename}`;
+            // Kiểm tra username đã tồn tại chưa
+            if (updateData.username) {
+                const existingUser = await User.findOne({
+                    username: updateData.username,
+                    _id: { $ne: userId }
+                });
+
+                if (existingUser) {
+                    return res.status(400).json({
+                        status: 400,
+                        message: "Username đã tồn tại"
+                    });
+                }
             }
+
+            // Xử lý upload avatar
+            if (req.file) {
+                // Lấy user cũ để xóa avatar cũ nếu có
+                const oldUser = await User.findById(userId);
+                if (oldUser && oldUser.avatar) {
+                    const oldAvatarFileName = oldUser.avatar.split('/').pop();
+                    const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
+                    try {
+                        await deleteFile(oldAvatarPath);
+                    } catch (err) {
+                        console.error('Error deleting old avatar:', err);
+                    }
+                }
+
+                // Tạo URL cho avatar mới
+                updateData.avatar = createFileUrl(req, req.file.filename);
+            } else if (req.body.avatar) {
+                // Nếu chỉ gửi URL avatar
+                updateData.avatar = req.body.avatar;
+            }
+
+            // Loại bỏ các trường undefined/null
+            Object.keys(updateData).forEach(key => {
+                if (updateData[key] === undefined || updateData[key] === null) {
+                    delete updateData[key];
+                }
+            });
 
             console.log('Update data:', updateData);
 
@@ -224,10 +410,29 @@ module.exports = {
             res.status(200).json({
                 status: 200,
                 message: "Cập nhật thành công",
-                data: result
+                data: {
+                    _id: result._id,
+                    username: result.username,
+                    email: result.email,
+                    phone: result.phone,
+                    sex: result.sex,
+                    birthDate: result.birthDate,
+                    avatar: result.avatar,
+                    role: result.role
+                }
             });
 
         } catch (error) {
+            // Xóa file mới nếu có lỗi
+            if (req.file) {
+                const filePath = path.join('public', 'uploads', req.file.filename);
+                try {
+                    await deleteFile(filePath);
+                } catch (err) {
+                    console.error('Error deleting file after error:', err);
+                }
+            }
+
             console.error("Error updating user:", error);
             res.status(500).json({
                 status: 500,
@@ -313,30 +518,70 @@ module.exports = {
     // Thêm method search
     searchUsers: async (req, res) => {
         try {
-            const { query } = req.query;
-            let users = [];
+            const { keyword } = req.query;
 
-            if (query) {
-                users = await md.find({
-                    $or: [
-                        { _id: { $regex: query, $options: 'i' } },
-                        { username: { $regex: query, $options: 'i' } },
-                        { email: { $regex: query, $options: 'i' } }
-                    ]
-                }).limit(10);
+            let query = {
+                role: 'user' // Only search for users, not admins
+            };
+
+            if (keyword) {
+                query.$or = [
+                    { username: { $regex: keyword, $options: 'i' } },
+                    { email: { $regex: keyword, $options: 'i' } },
+                    { phone: { $regex: keyword, $options: 'i' } }
+                ];
             }
 
-            res.json({
+            const users = await User.find(query)
+                .select('-password')
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
                 status: 200,
-                message: "Danh sách người dùng",
+                message: "Kết quả tìm kiếm",
                 data: users
             });
         } catch (error) {
             res.status(500).json({
                 status: 500,
-                message: "Lỗi tìm kiếm người dùng",
+                message: "Lỗi khi tìm kiếm người dùng",
                 error: error.message
             });
         }
-    }
+    },
+
+    toggleUserActive: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const user = await User.findById(id);
+
+            if (!user) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy người dùng"
+                });
+            }
+
+            // Toggle trạng thái active
+            user.is_active = !user.is_active;
+            await user.save();
+
+            res.status(200).json({
+                status: 200,
+                message: `Tài khoản đã được ${user.is_active ? 'kích hoạt' : 'vô hiệu hóa'}`,
+                data: {
+                    user_id: user._id,
+                    is_active: user.is_active
+                }
+            });
+
+        } catch (error) {
+            console.error("Error toggling user status:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi thay đổi trạng thái tài khoản",
+                error: error.message
+            });
+        }
+    },
 };

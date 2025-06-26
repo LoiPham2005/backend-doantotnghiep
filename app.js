@@ -5,34 +5,31 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const cors = require('cors');
 const http = require('http');
-const initializeSocket = require('./config/socket');
 
 var app = express();
 
-// Create HTTP server
+// Create HTTP server 
 const server = http.createServer(app);
 
 // Initialize Socket.IO
+const initializeSocket = require('./config/socket');
 const io = initializeSocket(server);
-console.log('Socket.IO initialized on server');
 app.set('io', io);
 
-// ✅ CORS configuration (phải đứng đầu)
+// CORS configuration
 const allowedOrigins = [
   "http://localhost:5173",
-  "http://localhost:3000",
+  "http://localhost:3000", 
   "https://web-admin-doantotnghiep.onrender.com"
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
+      return callback(null, true); 
     }
+    return callback(new Error('Not allowed by CORS'));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
@@ -49,7 +46,7 @@ app.use(cors({
 // ✅ Đáp ứng OPTIONS request cho preflight
 app.options('*', cors());
 
-// Middleware khác
+// Middlewares
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -69,15 +66,17 @@ app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/api', apiRouter);
 app.use('/api/users', usersRouter);
+
+// Connect database
 database.connect();
 
 // Error handler
-app.use(function (err, req, res, next) {
+app.use(function(err, req, res, next) {
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
   res.status(err.status || 500);
   res.render('error');
 });
 
-// Export
+// Export app and server
 module.exports = { app, server };

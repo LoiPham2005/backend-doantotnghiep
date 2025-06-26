@@ -57,7 +57,16 @@ module.exports = {
     // Lấy danh sách thương hiệu
     list: async (req, res) => {
         try {
-            const brands = await brandModel.find().sort({ name: 1 });
+            const isAdmin = req.query.isAdmin === 'true';
+            let query = {};
+
+            // Nếu không phải admin, chỉ lấy các thương hiệu active
+            if (!isAdmin) {
+                query.is_active = true;
+            }
+
+            const brands = await brandModel.find(query).sort({ name: 1 });
+
             res.status(200).json({
                 status: 200,
                 message: "Danh sách thương hiệu",
@@ -220,9 +229,9 @@ module.exports = {
     search: async (req, res) => {
         try {
             console.log('Search query:', req.query); // Debug log
-            
+
             const key = req.query.key || '';
-            
+
             const brands = await brandModel.find({
                 name: { $regex: key, $options: 'i' }
             }).sort({ name: 1 });
@@ -239,6 +248,34 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi tìm kiếm thương hiệu",
+                error: error.message
+            });
+        }
+    },
+
+    // Thêm hàm toggle active status
+    toggleActive: async (req, res) => {
+        try {
+            const brand = await brandModel.findById(req.params.id);
+            if (!brand) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy thương hiệu"
+                });
+            }
+
+            brand.is_active = !brand.is_active;
+            await brand.save();
+
+            res.status(200).json({
+                status: 200,
+                message: `Đã ${brand.is_active ? 'bật' : 'tắt'} thương hiệu thành công`,
+                data: brand
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi thay đổi trạng thái thương hiệu",
                 error: error.message
             });
         }

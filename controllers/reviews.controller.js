@@ -2,6 +2,7 @@ const Review = require('../models/reviews.model');
 const Order = require('../models/orders.model');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose'); // Thêm dòng này
 
 // Helper function để xóa file
 const deleteFile = (filePath) => {
@@ -124,7 +125,12 @@ module.exports = {
 
             // Tính rating trung bình
             const avgRating = await Review.aggregate([
-                { $match: { product_id: mongoose.Types.ObjectId(product_id) } },
+                {
+                    $match: {
+                        product_id: new mongoose.Types.ObjectId(product_id),
+                        is_verified: true
+                    }
+                },
                 {
                     $group: {
                         _id: null,
@@ -146,7 +152,9 @@ module.exports = {
                     totalReviews: avgRating[0]?.totalReviews || 0
                 }
             });
+
         } catch (error) {
+            console.error("Error getting product reviews:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy danh sách đánh giá",

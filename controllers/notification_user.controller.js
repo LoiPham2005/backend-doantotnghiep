@@ -83,12 +83,28 @@ module.exports = {
             const { page = 1, limit = 10 } = req.query;
 
             const userNotifications = await NotificationUser.find({ user_id })
-                .populate('notification_id')
+                .populate({
+                    path: 'notification_id',
+                    select: 'title content type createdAt'
+                })
                 .sort({ received_at: -1 })
                 .skip((page - 1) * limit)
                 .limit(limit);
 
             const total = await NotificationUser.countDocuments({ user_id });
+
+            // Lấy socket instance
+            const io = req.app.get('io');
+            
+            if (io) {
+                // Emit event khi có thông báo mới cho user cụ thể
+                io.to(user_id.toString()).emit('notifications_updated', {
+                    notifications: userNotifications,
+                    total,
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(total / limit)
+                });
+            }
 
             res.status(200).json({
                 status: 200,
@@ -100,7 +116,9 @@ module.exports = {
                     totalPages: Math.ceil(total / limit)
                 }
             });
+
         } catch (error) {
+            console.error("Error getting user notifications:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy danh sách thông báo",
@@ -145,14 +163,11 @@ module.exports = {
     // Đánh dấu thông báo đã đọc
     markAsRead: async (req, res) => {
         try {
-            const { user_id, notification_id } = req.params;
+            const { notification_id } = req.params;
 
-            const userNotification = await NotificationUser.findOneAndUpdate(
-                { user_id, notification_id },
-                { is_read: true },
-                { new: true }
-            ).populate('notification_id');
-
+            // Tìm và cập nhật notification_user
+            const userNotification = await NotificationUser.findById(notification_id);
+            
             if (!userNotification) {
                 return res.status(404).json({
                     status: 404,
@@ -160,12 +175,23 @@ module.exports = {
                 });
             }
 
+            userNotification.is_read = true;
+            await userNotification.save();
+
+            const populatedNotification = await NotificationUser.findById(userNotification._id)
+                .populate({
+                    path: 'notification_id',
+                    select: 'title content type createdAt'
+                });
+
             res.status(200).json({
                 status: 200,
                 message: "Đã đánh dấu thông báo như đã đọc",
-                data: userNotification
+                data: populatedNotification
             });
+
         } catch (error) {
+            console.error("Error marking notification as read:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi cập nhật trạng thái thông báo",
@@ -174,21 +200,30 @@ module.exports = {
         }
     },
 
-    // Đánh dấu tất cả thông báo đã đọc
+    // Đánh dấu tất cả thông báo đã đọc 
     markAllAsRead: async (req, res) => {
         try {
-            const { user_id } = req.params;
+            const user_id = req.user._id;
 
-            await NotificationUser.updateMany(
-                { user_id, is_read: false },
-                { is_read: true }
+            // Cập nhật tất cả thông báo chưa đọc của user thành đã đọc
+            const result = await NotificationUser.updateMany(
+                { 
+                    user_id: user_id,
+                    is_read: false 
+                },
+                { 
+                    is_read: true 
+                }
             );
 
             res.status(200).json({
                 status: 200,
-                message: "Đã đánh dấu tất cả thông báo như đã đọc"
+                message: "Đã đánh dấu tất cả thông báo như đã đọc",
+                modifiedCount: result.modifiedCount
             });
+
         } catch (error) {
+            console.error("Error marking all notifications as read:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi cập nhật trạng thái thông báo",
@@ -238,7 +273,7 @@ module.exports = {
 
             res.status(200).json({
                 status: 200,
-                message: "Danh sách người dùng của thông báo", 
+                message: "Danh sách người dùng của thông báo",
                 notifications: notificationUsers
             });
 
@@ -246,6 +281,34 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy danh sách người dùng",
+                error: error.message
+            });
+        }
+    },
+
+    // Thêm method để lấy thông báo cho admin
+    getAdminNotifications: async (req, res) => {
+        try {
+            const notifications = await NotificationUser.find()
+                .populate({
+                    path: 'notification_id',
+                    select: 'title content type createdAt'
+                })
+                .sort({ createdAt: -1 })
+                .limit(20);
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách thông báo admin",
+                data: {
+                    notifications
+                }
+            });
+        } catch (error) {
+            console.error("Error getting admin notifications:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy thông báo admin",
                 error: error.message
             });
         }
