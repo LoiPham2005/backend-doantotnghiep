@@ -17,6 +17,10 @@ const Users = new Schema({
     refreshToken: {
         type: String,
         required: false
+    },
+    is_active: {
+        type: Boolean,
+        default: true // Mặc định tài khoản được kích hoạt
     }
 }, {
     timestamps: true,

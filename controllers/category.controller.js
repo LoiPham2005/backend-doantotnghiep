@@ -64,25 +64,28 @@ module.exports = {
     // lấy toàn bộ dữ liệu ra
     list: async (req, res) => {
         try {
-            const result = await modelCategory.find().sort({ name: 1 });
-            // res.send(result);
-
-            if (result) {
-                res.json({
-                    "status": 200,
-                    "message": "List",
-                    "data": result
-                });
-            } else {
-                res.json({
-                    "status": 400,
-                    "message": "Lỗi",
-                    "data": []
-                });
+            const isAdmin = req.query.isAdmin === 'true';
+            let query = {};
+            
+            // Nếu không phải admin, chỉ lấy các danh mục active
+            if (!isAdmin) {
+                query.is_active = true;
             }
+
+            const result = await modelCategory.find(query).sort({ name: 1 });
+
+            res.json({
+                status: 200,
+                message: "Danh sách danh mục",
+                data: result
+            });
         } catch (err) {
-            console.error("Error while fetching users:", err); // In l��i chi tiết ra console
-            res.status(500).send({ error: 'An error occurred while fetching data' }); // Trả về l��i cho client
+            console.error("Error fetching categories:", err);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách danh mục",
+                error: err.message
+            });
         }
     },
 
@@ -238,6 +241,34 @@ module.exports = {
             console.error("Error while fetching users:", err); // In l��i chi tiết ra console
             res.status(500).send({ error: 'An error occurred while fetching data' }); // Trả về l��i cho client
         }
-    }
+    },
+
+    // Thêm hàm toggle active status
+    toggleActive: async (req, res) => {
+        try {
+            const category = await modelCategory.findById(req.params.id);
+            if (!category) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy danh mục"
+                });
+            }
+
+            category.is_active = !category.is_active;
+            await category.save();
+
+            res.status(200).json({
+                status: 200,
+                message: `Đã ${category.is_active ? 'bật' : 'tắt'} danh mục thành công`,
+                data: category
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi thay đổi trạng thái danh mục",
+                error: error.message
+            });
+        }
+    },
 }
 

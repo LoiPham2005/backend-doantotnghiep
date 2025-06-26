@@ -1,6 +1,8 @@
 const User = require('../models/user.model');
 const Order = require('../models/orders.model');
 const OrderDetail = require('../models/order_details.model');
+const ShoesVariant = require('../models/shoes_variant.model');
+const Shoes = require('../models/shoes.model');
 
 module.exports = {
     getDailyStats: async (req, res) => {
@@ -160,39 +162,37 @@ module.exports = {
     getTopProducts: async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
-            console.log('Query params:', { startDate, endDate }); // Debug log
 
             // Build match query for orders
-            const orderMatchQuery = {
+            const matchQuery = {
                 status: { $in: ['delivered', 'received'] }
             };
 
             if (startDate && endDate) {
-                orderMatchQuery.createdAt = {
+                matchQuery.createdAt = {
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
                 };
             }
 
-            const topProducts = await OrderDetail.aggregate([
+            // Log để debug
+            console.log('Match Query:', matchQuery);
+
+            const topProducts = await Order.aggregate([
+                { $match: matchQuery },
                 {
                     $lookup: {
-                        from: 'orders',
-                        localField: 'order_id',
-                        foreignField: '_id',
-                        as: 'order'
+                        from: 'orderdetails',
+                        localField: '_id',
+                        foreignField: 'order_id',
+                        as: 'details'
                     }
                 },
-                { $unwind: '$order' },
-                {
-                    $match: {
-                        'order.status': { $in: ['delivered', 'received'] }
-                    }
-                },
+                { $unwind: '$details' },
                 {
                     $lookup: {
                         from: 'shoesvariants',
-                        localField: 'variant_id',
+                        localField: 'details.variant_id',
                         foreignField: '_id',
                         as: 'variant'
                     }
@@ -230,23 +230,27 @@ module.exports = {
                         _id: '$product._id',
                         name: { $first: '$product.name' },
                         media: { $first: '$product.media' },
-                        brand: { $first: '$brand.name' },
-                        category: { $first: '$category.name' },
-                        price: { $first: '$variant.price' },
-                        totalSold: { $sum: '$quantity' },
-                        totalRevenue: { $sum: { $multiply: ['$price_at_purchase', '$quantity'] } }
+                        brand_id: { $first: '$brand' },
+                        category_id: { $first: '$category' },
+                        totalSold: { $sum: '$details.quantity' },
+                        totalRevenue: {
+                            $sum: { $multiply: ['$details.price_at_purchase', '$details.quantity'] }
+                        }
                     }
                 },
                 { $sort: { totalSold: -1 } },
                 { $limit: 10 }
             ]);
 
-            console.log('Top products result:', topProducts); // Debug log
+            // Log để debug
+            console.log('Found products:', topProducts.length);
 
             res.status(200).json({
                 status: 200,
                 message: "Top 10 sản phẩm bán chạy nhất",
-                data: topProducts || [] // Return empty array if no results
+                data: {
+                    products: topProducts
+                }
             });
 
         } catch (error) {
@@ -299,7 +303,7 @@ module.exports = {
                         email: '$user.email',
                         phone: '$user.phone',
                         avatar: '$user.avatar',
-                        birth_date: '$user.birth_date',
+                        birthDate: '$user.birthDate',
                         totalOrders: 1,
                         totalSpent: 1,
                         lastPurchase: 1

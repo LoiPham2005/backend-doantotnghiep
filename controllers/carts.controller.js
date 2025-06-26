@@ -18,14 +18,24 @@ module.exports = {
                 });
             }
 
-            // Kiểm tra sản phẩm và variant tồn tại
-            // const shoes = await Shoes.findById(shoes_id);
-            const variant = await ShoesVariant.findById(variant_id);
+            // Kiểm tra variant tồn tại
+            const variant = await ShoesVariant.findById(variant_id).populate({
+                path: 'shoes_id',
+                select: 'status'
+            });
 
-            if ( !variant) {
+            if (!variant) {
                 return res.status(404).json({
                     status: 404,
                     message: "Không tìm thấy sản phẩm hoặc biến thể"
+                });
+            }
+
+            // Kiểm tra trạng thái sản phẩm
+            if (variant.shoes_id.status === 'out of stock' || variant.shoes_id.status === 'importing goods') {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Sản phẩm hiện không có sẵn để mua"
                 });
             }
 
@@ -54,7 +64,6 @@ module.exports = {
                 // Nếu chưa có, tạo mới
                 cartItem = new Cart({
                     user_id,
-                    // shoes_id,
                     variant_id,
                     quantity
                 });
@@ -63,8 +72,13 @@ module.exports = {
 
             // Populate thông tin đầy đủ
             const populatedCart = await Cart.findById(cartItem._id)
-                // .populate('shoes_id')
-                .populate('variant_id')
+                .populate({
+                    path: 'variant_id',
+                    populate: {
+                        path: 'shoes_id',
+                        select: 'name status media'
+                    }
+                })
                 .populate('user_id');
 
             res.status(200).json({

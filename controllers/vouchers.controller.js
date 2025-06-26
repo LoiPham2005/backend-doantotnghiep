@@ -174,5 +174,35 @@ module.exports = {
                 error: error.message
             });
         }
+    },
+
+    searchVouchers: async (req, res) => {
+        try {
+            const { keyword } = req.query;
+
+            let query = {};
+            if (keyword) {
+                query = {
+                    $or: [
+                        { name: { $regex: keyword, $options: 'i' } },
+                        { code: { $regex: keyword, $options: 'i' } }
+                    ]
+                };
+            }
+
+            const vouchers = await Voucher.find(query).sort({ createdAt: -1 });
+
+            res.status(200).json({
+                status: 200,
+                message: "Kết quả tìm kiếm",
+                data: vouchers
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi tìm kiếm voucher",
+                error: error.message
+            });
+        }
     }
 };

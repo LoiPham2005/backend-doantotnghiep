@@ -11,11 +11,18 @@ function initializeSocket(server) {
     }
   });
 
-  // Store active chat rooms
-  const userRooms = new Map();
+  // Store connected users
+  const connectedUsers = new Map();
 
   io.on('connection', (socket) => {
     console.log('New socket connected:', socket.id);
+
+    // User joins with their ID
+    socket.on('join', (userId) => {
+      console.log(`User ${userId} joined`);
+      connectedUsers.set(userId, socket.id);
+      socket.userId = userId;
+    });
 
     // Join chat room
     socket.on('join chat', async ({ userId, partnerId }) => {
@@ -41,7 +48,6 @@ function initializeSocket(server) {
         // Join room với chat._id
         const roomId = chat._id.toString();
         socket.join(roomId);
-        userRooms.set(socket.id, roomId);
         console.log('Joined room:', roomId);
 
         // Gửi chat info về client
@@ -90,11 +96,27 @@ function initializeSocket(server) {
       }
     });
 
+    // Handle new notification
+    socket.on('new notification', (notification) => {
+      if (notification.selectedUsers && notification.selectedUsers.length > 0) {
+        notification.selectedUsers.forEach(userId => {
+          const userSocketId = connectedUsers.get(userId);
+          if (userSocketId) {
+            io.to(userSocketId).emit('notification received', notification);
+            
+            // Trigger cập nhật danh sách thông báo
+            io.to(userId.toString()).emit('refresh notifications');
+          }
+        });
+      } else {
+        // Gửi thông báo cho tất cả user nếu là thông báo hệ thống/khuyến mãi
+        socket.broadcast.emit('notification received', notification);
+      }
+    });
+
     socket.on('disconnect', () => {
-      const roomId = userRooms.get(socket.id);
-      if (roomId) {
-        socket.leave(roomId);
-        userRooms.delete(socket.id);
+      if (socket.userId) {
+        connectedUsers.delete(socket.userId);
       }
       console.log('Socket disconnected:', socket.id);
     });

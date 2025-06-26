@@ -38,7 +38,7 @@ const reviewSchema = new Schema({
     }],
     is_verified: {
         type: Boolean,
-        default: false
+        default: true
     }
 }, {
     timestamps: true

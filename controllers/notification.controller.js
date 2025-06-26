@@ -16,24 +16,30 @@ module.exports = {
 
             const savedNotification = await newNotification.save();
 
-            // Nếu là thông báo đơn hàng, chỉ tạo notification cho selected users
+            // Xử lý tạo notification cho users
             if (type === 'order' && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
                 const notificationUsers = selectedUsers.map(userId => ({
                     notification_id: savedNotification._id,
                     user_id: userId
                 }));
-
                 await NotificationUser.insertMany(notificationUsers);
-            } 
-            // Nếu là thông báo hệ thống/khuyến mãi, tạo cho tất cả users
-            else if (type === 'system' || type === 'promotion') {
+            } else if (type === 'system' || type === 'promotion') {
                 const users = await User.find({ role: 'user' });
                 const notificationUsers = users.map(user => ({
                     notification_id: savedNotification._id,
                     user_id: user._id
                 }));
-
                 await NotificationUser.insertMany(notificationUsers);
+            }
+
+            // Emit socket event
+            const io = req.app.get('io');
+            if (io) {
+                const notificationData = {
+                    ...savedNotification.toObject(),
+                    selectedUsers: type === 'order' ? selectedUsers : null
+                };
+                io.emit('new notification', notificationData);
             }
 
             res.status(200).json({
@@ -86,7 +92,7 @@ module.exports = {
             }
 
             // Cập nhật thông tin cơ bản
-            notification.title = title;  
+            notification.title = title;
             notification.content = content;
             notification.type = type;
 
@@ -102,7 +108,7 @@ module.exports = {
                     user_id: userId
                 }));
                 await NotificationUser.insertMany(notificationUsers);
-            } 
+            }
             else if (type === 'system' || type === 'promotion') {
                 const users = await User.find({ role: 'user' });
                 const notificationUsers = users.map(user => ({
@@ -156,6 +162,39 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi xóa thông báo",
+                error: error.message
+            });
+        }
+    },
+
+    // Search notifications
+    searchNotifications: async (req, res) => {
+        try {
+            const { keyword } = req.query;
+
+            let query = {};
+            if (keyword) {
+                query = {
+                    $or: [
+                        { title: { $regex: keyword, $options: 'i' } },
+                        { content: { $regex: keyword, $options: 'i' } },
+                        { type: { $regex: keyword, $options: 'i' } }
+                    ]
+                };
+            }
+
+            const notifications = await Notification.find(query)
+                .sort({ created_at: -1 });
+
+            res.status(200).json({
+                status: 200,
+                message: "Kết quả tìm kiếm",
+                data: notifications
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi tìm kiếm thông báo",
                 error: error.message
             });
         }
