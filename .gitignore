@@ -1,6 +1,6 @@
 # Ignore upload folders
-# public/uploads/*
-# !public/uploads/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
 
 # Ignore all environment files
 .env
@@ -11,11 +11,3 @@
 .vscode/
 
 node_modules/
-
-
-# Ignore all files in uploads folder
-# /public/uploads/**
-
-# But keep the folder structure (if empty)
-# !public/uploads/
-# !public/uploads/.gitkeep

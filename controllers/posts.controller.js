@@ -1,19 +1,9 @@
 const Posts = require('../models/posts.model');
 const fs = require('fs');
 const path = require('path');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
-const deleteFile = (filePath) => {
-    return new Promise((resolve, reject) => {
-        fs.unlink(filePath, (err) => {
-            if (err) {
-                console.error(`Error deleting file ${filePath}:`, err);
-                reject(err);
-            } else {
-                resolve();
-            }
-        });
-    });
-};
 
 module.exports = {
     createPost: async (req, res) => {
@@ -30,20 +20,39 @@ module.exports = {
             }
 
             // Xử lý media files
+            // let mediaFiles = [];
+            // if (req.files && req.files.length > 0) {
+            //     mediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     }));
+            // }
+
+            // const newPost = new Posts({
+            //     admin_id,
+            //     title,
+            //     message,
+            //     media: mediaFiles,
+            //     is_active: true
+            // });
+
             let mediaFiles = [];
             if (req.files && req.files.length > 0) {
-                mediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'posts');
+                    mediaFiles.push({
+                        type: result.type,
+                        url: result.url,
+                        cloudinary_id: result.public_id
+                    });
+                }
             }
 
             const newPost = new Posts({
                 admin_id,
                 title,
                 message,
-                media: mediaFiles,
-                is_active: true
+                media: mediaFiles
             });
 
             const savedPost = await newPost.save();
@@ -104,21 +113,43 @@ module.exports = {
             }
 
             // Xử lý media mới nếu có
+            // if (req.files && req.files.length > 0) {
+            //     // Xóa files cũ
+            //     if (post.media && post.media.length > 0) {
+            //         for (const media of post.media) {
+            //             const filename = media.url.split('/').pop();
+            //             const filePath = path.join('public', 'uploads', filename);
+            //             await deleteFile(filePath);
+            //         }
+            //     }
+
+            //     // Thêm media mới
+            //     post.media = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     }));
+            // }
+
+            // Xóa media cũ nếu có file mới
             if (req.files && req.files.length > 0) {
-                // Xóa files cũ
                 if (post.media && post.media.length > 0) {
                     for (const media of post.media) {
-                        const filename = media.url.split('/').pop();
-                        const filePath = path.join('public', 'uploads', filename);
-                        await deleteFile(filePath);
+                        if (media.cloudinary_id) {
+                            await deleteFromCloudinary(media.cloudinary_id, media.type);
+                        }
                     }
                 }
 
-                // Thêm media mới
-                post.media = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+                // Upload media mới
+                post.media = [];
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'posts');
+                    post.media.push({
+                        type: result.type,
+                        url: result.url,
+                        cloudinary_id: result.public_id
+                    });
+                }
             }
 
             // Cập nhật thông tin cơ bản
@@ -160,11 +191,19 @@ module.exports = {
             }
 
             // Xóa media files
+            // if (post.media && post.media.length > 0) {
+            //     for (const media of post.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+            // }
+
             if (post.media && post.media.length > 0) {
                 for (const media of post.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+                    if (media.cloudinary_id) {
+                        await deleteFromCloudinary(media.cloudinary_id, media.type);
+                    }
                 }
             }
 

@@ -4,6 +4,7 @@ const Schema = mongoose.Schema;
 const brand = new Schema({
     media: { type: String, required: true },
     name: { type: String, required: true, unique: true },
+    cloudinary_id: { type: String, required: true },
     is_active: { type: Boolean, default: true }, // Thêm trường is_active
 }, {
     timestamps: true,

@@ -15,7 +15,8 @@ const ShoeSchema = new mongoose.Schema({
         url: {
             type: String,
             required: false
-        }
+        },
+        public_id: String 
     }],
     name: {
         type: String,

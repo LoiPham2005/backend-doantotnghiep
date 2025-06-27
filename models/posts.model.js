@@ -20,7 +20,8 @@ const postSchema = new Schema({
             type: String,
             enum: ['image', 'video']
         },
-        url: String
+        url: String,
+        cloudinary_id: String
     }],
     is_active: {
         type: Boolean,

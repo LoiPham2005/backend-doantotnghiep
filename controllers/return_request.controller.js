@@ -3,20 +3,22 @@ const OrderDetail = require('../models/order_details.model');
 const Order = require('../models/orders.model');
 const fs = require('fs');
 const path = require('path');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // Helper function to delete file
-const deleteFile = (filePath) => {
-    return new Promise((resolve, reject) => {
-        fs.unlink(filePath, (err) => {
-            if (err) {
-                console.error(`Error deleting file ${filePath}:`, err);
-                reject(err);
-            } else {
-                resolve();
-            }
-        });
-    });
-};
+// const deleteFile = (filePath) => {
+//     return new Promise((resolve, reject) => {
+//         fs.unlink(filePath, (err) => {
+//             if (err) {
+//                 console.error(`Error deleting file ${filePath}:`, err);
+//                 reject(err);
+//             } else {
+//                 resolve();
+//             }
+//         });
+//     });
+// };
 
 module.exports = {
     // Tạo yêu cầu trả hàng
@@ -70,11 +72,31 @@ module.exports = {
             }
 
             // Xử lý hình ảnh
-            let imageUrls = [];
+            // let imageUrls = [];
+            // if (req.files && req.files.length > 0) {
+            //     imageUrls = req.files.map(file => 
+            //         `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     );
+            // }
+
+            // const returnRequest = new ReturnRequest({
+            //     order_detail_id,
+            //     user_id,
+            //     reason,
+            //     quality,
+            //     images: imageUrls
+            // });
+
+            // ✅ Upload ảnh lên Cloudinary
+            let uploadedImages = [];
             if (req.files && req.files.length > 0) {
-                imageUrls = req.files.map(file => 
-                    `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                );
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'return-requests');
+                    uploadedImages.push({
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             const returnRequest = new ReturnRequest({
@@ -82,7 +104,7 @@ module.exports = {
                 user_id,
                 reason,
                 quality,
-                images: imageUrls
+                images: uploadedImages
             });
 
             await returnRequest.save();
@@ -100,6 +122,7 @@ module.exports = {
                     await deleteFile(file.path);
                 }
             }
+            console.error("❌ Lỗi khi tạo yêu cầu trả hàng:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi tạo yêu cầu trả hàng",
@@ -268,7 +291,7 @@ module.exports = {
     deleteReturnRequest: async (req, res) => {
         try {
             const returnRequest = await ReturnRequest.findById(req.params.id);
-            
+
             if (!returnRequest) {
                 return res.status(404).json({
                     status: 404,
@@ -284,10 +307,15 @@ module.exports = {
             }
 
             // Xóa files
-            for (const imageUrl of returnRequest.images) {
-                const filename = imageUrl.split('/').pop();
-                const filePath = path.join('public', 'uploads', filename);
-                await deleteFile(filePath);
+            // for (const imageUrl of returnRequest.images) {
+            //     const filename = imageUrl.split('/').pop();
+            //     const filePath = path.join('public', 'uploads', filename);
+            //     await deleteFile(filePath);
+            // }
+
+            // ✅ Xóa ảnh khỏi Cloudinary
+            for (const img of returnRequest.images) {
+                await deleteFromCloudinary(img.public_id);
             }
 
             await returnRequest.remove();

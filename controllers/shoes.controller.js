@@ -3,9 +3,10 @@ const router = express.Router();
 const Shoes = require('../models/shoes.model');
 const ShoesVariant = require('../models/shoes_variant.model');
 const path = require('path'); // Thêm import path
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 const Brand = require('../models/brand.model'); // Import model Brand
 const Category = require('../models/category.model'); // Import model Category
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // Helper function để kiểm tra role 
 const isAdmin = (req) => req.user?.role === 'admin';
@@ -16,13 +17,26 @@ module.exports = {
         try {
             const { name, description, brand_id, category_id, variants } = req.body;
 
-            // Xử lý media files
+            // // Xử lý media files
+            // let mediaFiles = [];
+            // if (req.files && req.files.length > 0) {
+            //     mediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: createFileUrl(req, file.filename)  // Thêm req vào đây
+            //     }));
+            // }
+
             let mediaFiles = [];
+
             if (req.files && req.files.length > 0) {
-                mediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: createFileUrl(req, file.filename)  // Thêm req vào đây
-                }));
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'shoes');
+                    mediaFiles.push({
+                        type: result.resource_type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             // Tạo sản phẩm mới
@@ -302,30 +316,54 @@ module.exports = {
             oldShoe.status = status;
 
             // Xử lý media
-            let mediaFiles = [...existingMedia]; // Giữ lại các media đã chọn
+            // let mediaFiles = [...existingMedia]; // Giữ lại các media đã chọn
 
-            // Xóa các file cũ không còn được sử dụng
-            if (oldShoe.media) {
-                for (const oldMedia of oldShoe.media) {
-                    if (!existingMedia.some(media => media.url === oldMedia.url)) {
-                        const filename = oldMedia.url.split('/').pop();
-                        const filePath = path.join('public', 'uploads', filename);
-                        try {
-                            await deleteFile(filePath);
-                        } catch (err) {
-                            console.error('Error deleting old file:', err);
-                        }
+            // // Xóa các file cũ không còn được sử dụng
+            // if (oldShoe.media) {
+            //     for (const oldMedia of oldShoe.media) {
+            //         if (!existingMedia.some(media => media.url === oldMedia.url)) {
+            //             const filename = oldMedia.url.split('/').pop();
+            //             const filePath = path.join('public', 'uploads', filename);
+            //             try {
+            //                 await deleteFile(filePath);
+            //             } catch (err) {
+            //                 console.error('Error deleting old file:', err);
+            //             }
+            //         }
+            //     }
+            // }
+
+            // // Thêm files mới
+            // if (req.files && req.files.length > 0) {
+            //     const newMediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: createFileUrl(req, file.filename)
+            //     }));
+            //     mediaFiles = [...mediaFiles, ...newMediaFiles];
+            // }
+
+            // ✅ Giữ lại media còn dùng
+            let mediaFiles = existingMedia;
+
+            // ✅ Xoá media không dùng nữa trên Cloudinary
+            for (const oldMedia of oldShoe.media) {
+                if (!existingMedia.some(media => media.url === oldMedia.url)) {
+                    if (oldMedia.public_id) {
+                        await deleteFromCloudinary(oldMedia.public_id, oldMedia.type);
                     }
                 }
             }
 
-            // Thêm files mới
+            // ✅ Thêm media mới
             if (req.files && req.files.length > 0) {
-                const newMediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: createFileUrl(req, file.filename)
-                }));
-                mediaFiles = [...mediaFiles, ...newMediaFiles];
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'shoes');
+                    mediaFiles.push({
+                        type: result.resource_type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             // Cập nhật mảng media
@@ -371,11 +409,18 @@ module.exports = {
             }
 
             // Xóa files
-            if (shoe.media && shoe.media.length > 0) {
-                for (const media of shoe.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+            // if (shoe.media && shoe.media.length > 0) {
+            //     for (const media of shoe.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+            // }
+
+            // ✅ Xoá media trên Cloudinary
+            for (const media of shoe.media) {
+                if (media.public_id) {
+                    await deleteFromCloudinary(media.public_id, media.type);
                 }
             }
 
@@ -811,14 +856,14 @@ module.exports = {
 
             // Build query tìm kiếm
             let query = {};
-            
+
             if (keyword) {
                 // Tìm brand và category có tên chứa keyword
-                const brands = await Brand.find({ 
-                    name: { $regex: keyword, $options: 'i' } 
+                const brands = await Brand.find({
+                    name: { $regex: keyword, $options: 'i' }
                 });
-                const categories = await Category.find({ 
-                    name: { $regex: keyword, $options: 'i' } 
+                const categories = await Category.find({
+                    name: { $regex: keyword, $options: 'i' }
                 });
 
                 const brandIds = brands.map(brand => brand._id);

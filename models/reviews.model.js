@@ -34,7 +34,8 @@ const reviewSchema = new Schema({
         },
         url: {
             type: String,
-        }
+        },
+        public_id: { type: String } 
     }],
     is_verified: {
         type: Boolean,
