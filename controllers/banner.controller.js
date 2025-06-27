@@ -1,6 +1,5 @@
-const path = require('path');
 const Banner = require('../models/banner.model');
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 module.exports = {
     // Thêm banner
@@ -21,19 +20,34 @@ module.exports = {
                 });
             }
 
-            const media = createFileUrl(req, req.file.filename);
+            try {
+                // Upload lên Cloudinary
+                const result = await uploadToCloudinary(req.file.path, 'banners');
 
-            const banner = new Banner({ media });
-            const saved = await banner.save();
+                const banner = new Banner({
+                    media: result.url,
+                    cloudinary_id: result.public_id
+                });
 
-            res.status(200).json({
-                status: 200,
-                message: "Thêm banner thành công",
-                data: saved
-            });
+                const saved = await banner.save();
+
+                res.status(200).json({
+                    status: 200,
+                    message: "Thêm banner thành công",
+                    data: saved
+                });
+
+            } catch (uploadError) {
+                // Nếu upload thất bại, xóa file tạm
+                await deleteFile(req.file.path);
+                throw uploadError;
+            }
+
         } catch (error) {
+            // Đảm bảo xóa file tạm nếu có lỗi
             if (req.file) {
                 await deleteFile(req.file.path);
+                console.error("❌ Lỗi khi thêm banner:", error);
             }
             res.status(500).json({
                 status: 500,
@@ -43,25 +57,7 @@ module.exports = {
         }
     },
 
-    // Lấy danh sách banner
-    list: async (req, res) => {
-        try {
-            const banners = await Banner.find().sort({ createdAt: -1 });
-            res.status(200).json({
-                status: 200,
-                message: "Danh sách banner",
-                data: banners
-            });
-        } catch (error) {
-            res.status(500).json({
-                status: 500,
-                message: "Lỗi khi lấy danh sách banner",
-                error: error.message
-            });
-        }
-    },
-
-    // Cập nhật banner
+    // Cập nhật banner 
     edit: async (req, res) => {
         try {
             const banner = await Banner.findById(req.params.id);
@@ -73,25 +69,31 @@ module.exports = {
             }
 
             if (req.file) {
-                // Xóa ảnh cũ
-                const oldFilename = banner.media.split('/').pop();
-                const oldFilePath = path.join(__dirname, '../public/uploads', oldFilename);
                 try {
-                    await deleteFile(oldFilePath);
-                } catch (error) {
-                    console.error("Lỗi xóa file cũ:", error);
+                    // Xóa ảnh cũ trên Cloudinary
+                    if (banner.cloudinary_id) {
+                        await deleteFromCloudinary(banner.cloudinary_id);
+                    }
+
+                    // Upload ảnh mới
+                    const result = await uploadToCloudinary(req.file.path, 'banners');
+                    banner.media = result.url;
+                    banner.cloudinary_id = result.public_id;
+
+                    const updated = await banner.save();
+
+                    res.status(200).json({
+                        status: 200,
+                        message: "Cập nhật banner thành công",
+                        data: updated
+                    });
+
+                } catch (uploadError) {
+                    // Xóa file tạm nếu upload thất bại
+                    await deleteFile(req.file.path);
+                    throw uploadError;
                 }
-
-                // Gán media mới
-                banner.media = createFileUrl(req, req.file.filename);
             }
-
-            const updated = await banner.save();
-            res.status(200).json({
-                status: 200,
-                message: "Cập nhật banner thành công",
-                data: updated
-            });
 
         } catch (error) {
             if (req.file) {
@@ -116,10 +118,10 @@ module.exports = {
                 });
             }
 
-            // Xóa file ảnh
-            const filename = banner.media.split('/').pop();
-            const filePath = path.join('public', 'uploads', filename);
-            await deleteFile(filePath);
+            // Xóa file từ Cloudinary
+            if (banner.cloudinary_id) {
+                await deleteFromCloudinary(banner.cloudinary_id);
+            }
 
             await Banner.deleteOne({ _id: req.params.id });
 
@@ -127,6 +129,7 @@ module.exports = {
                 status: 200,
                 message: "Xóa banner thành công"
             });
+
         } catch (error) {
             res.status(500).json({
                 status: 500,
@@ -135,4 +138,22 @@ module.exports = {
             });
         }
     },
+
+    // Lấy danh sách banner
+    list: async (req, res) => {
+        try {
+            const banners = await Banner.find().sort({ createdAt: -1 });
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách banner",
+                data: banners
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách banner",
+                error: error.message
+            });
+        }
+    }
 };
