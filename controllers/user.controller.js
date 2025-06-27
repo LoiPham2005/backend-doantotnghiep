@@ -5,7 +5,8 @@ const bcrypt = require('bcrypt');
 const User = require('../models/user.model');
 const path = require('path');
 const fs = require('fs');
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // tạo toekn mới
 const generateAuthToken = (userId) => {
@@ -364,24 +365,43 @@ module.exports = {
             }
 
             // Xử lý upload avatar
+            // if (req.file) {
+            //     // Lấy user cũ để xóa avatar cũ nếu có
+            //     const oldUser = await User.findById(userId);
+            //     if (oldUser && oldUser.avatar) {
+            //         const oldAvatarFileName = oldUser.avatar.split('/').pop();
+            //         const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
+            //         try {
+            //             await deleteFile(oldAvatarPath);
+            //         } catch (err) {
+            //             console.error('Error deleting old avatar:', err);
+            //         }
+            //     }
+
+            //     // Tạo URL cho avatar mới
+            //     updateData.avatar = createFileUrl(req, req.file.filename);
+            // } else if (req.body.avatar) {
+            //     // Nếu chỉ gửi URL avatar
+            //     updateData.avatar = req.body.avatar;
+            // }
+
             if (req.file) {
-                // Lấy user cũ để xóa avatar cũ nếu có
-                const oldUser = await User.findById(userId);
-                if (oldUser && oldUser.avatar) {
-                    const oldAvatarFileName = oldUser.avatar.split('/').pop();
-                    const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
-                    try {
-                        await deleteFile(oldAvatarPath);
-                    } catch (err) {
-                        console.error('Error deleting old avatar:', err);
-                    }
+                const user = await User.findById(userId);
+                if (!user) {
+                    return res.status(404).json({ status: 404, message: "Không tìm thấy người dùng" });
                 }
 
-                // Tạo URL cho avatar mới
-                updateData.avatar = createFileUrl(req, req.file.filename);
+                // ✅ Xoá avatar cũ nếu có
+                if (user.avatar && user.avatar.includes('res.cloudinary.com')) {
+                    const publicId = user.avatar.split('/').pop().split('.')[0]; // hoặc lưu public_id riêng trong DB
+                    await deleteFromCloudinary(`avatars/${publicId}`, 'image');
+                }
+
+                // ✅ Upload ảnh mới lên Cloudinary
+                const result = await uploadToCloudinary(req.file.path, 'avatars');
+                updateData.avatar = result.secure_url;
             } else if (req.body.avatar) {
-                // Nếu chỉ gửi URL avatar
-                updateData.avatar = req.body.avatar;
+                updateData.avatar = req.body.avatar; // URL thủ công
             }
 
             // Loại bỏ các trường undefined/null
@@ -425,12 +445,14 @@ module.exports = {
         } catch (error) {
             // Xóa file mới nếu có lỗi
             if (req.file) {
-                const filePath = path.join('public', 'uploads', req.file.filename);
-                try {
-                    await deleteFile(filePath);
-                } catch (err) {
-                    console.error('Error deleting file after error:', err);
-                }
+                // const filePath = path.join('public', 'uploads', req.file.filename);
+                // try {
+                //     await deleteFile(filePath);
+                // } catch (err) {
+                //     console.error('Error deleting file after error:', err);
+                // }
+
+                await deleteFile(req.file.path);
             }
 
             console.error("Error updating user:", error);

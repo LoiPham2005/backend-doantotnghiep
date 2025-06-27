@@ -2,21 +2,24 @@ const Review = require('../models/reviews.model');
 const Order = require('../models/orders.model');
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose'); // Thêm dòng này
+const mongoose = require('mongoose');
+
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // Helper function để xóa file
-const deleteFile = (filePath) => {
-    return new Promise((resolve, reject) => {
-        fs.unlink(filePath, (err) => {
-            if (err) {
-                console.error(`Error deleting file ${filePath}:`, err);
-                reject(err);
-            } else {
-                resolve();
-            }
-        });
-    });
-};
+// const deleteFile = (filePath) => {
+//     return new Promise((resolve, reject) => {
+//         fs.unlink(filePath, (err) => {
+//             if (err) {
+//                 console.error(`Error deleting file ${filePath}:`, err);
+//                 reject(err);
+//             } else {
+//                 resolve();
+//             }
+//         });
+//     });
+// };
 
 module.exports = {
     // Thêm đánh giá mới
@@ -54,12 +57,25 @@ module.exports = {
             }
 
             // Xử lý media files
+            // let mediaFiles = [];
+            // if (req.files && req.files.length > 0) {
+            //     mediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     }));
+            // }
+
+            // ✅ Upload media lên Cloudinary
             let mediaFiles = [];
             if (req.files && req.files.length > 0) {
-                mediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'reviews');
+                    mediaFiles.push({
+                        type: result.type,     // image or video
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             const newReview = new Review({
@@ -211,22 +227,40 @@ module.exports = {
             }
 
             // Xử lý media mới nếu có
-            if (req.files && req.files.length > 0) {
-                // Xóa files cũ
-                for (const media of review.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
-                }
+            // if (req.files && req.files.length > 0) {
+            //     // Xóa files cũ
+            //     for (const media of review.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
 
-                review.media = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+            //     review.media = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     }));
+            // }
+
+            // review.rating = rating;
+            // review.comment = comment;
+            // await review.save();
+
+            // ✅ Upload media mới lên Cloudinary
+            let mediaFiles = [];
+            if (req.files && req.files.length > 0) {
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'reviews');
+                    mediaFiles.push({
+                        type: result.type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             review.rating = rating;
             review.comment = comment;
+            review.media = mediaFiles;
             await review.save();
 
             res.status(200).json({
@@ -289,11 +323,18 @@ module.exports = {
             }
 
             // Xóa media files
-            if (review.media && review.media.length > 0) {
-                for (const media of review.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+            // if (review.media && review.media.length > 0) {
+            //     for (const media of review.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+            // }
+
+            // ✅ Xoá media khỏi Cloudinary
+            for (const media of review.media) {
+                if (media.public_id) {
+                    await deleteFromCloudinary(media.public_id, media.type);
                 }
             }
 

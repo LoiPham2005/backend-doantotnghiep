@@ -2,7 +2,8 @@ var express = require('express');
 var router = express.Router();
 const brandModel = require('../models/brand.model');
 const path = require('path');
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 module.exports = {
     // Thêm thương hiệu mới
@@ -27,19 +28,40 @@ module.exports = {
                 });
             }
 
-            const media = createFileUrl(req, req.file.filename);
+            // const media = createFileUrl(req, req.file.filename);
 
-            const newBrand = new brandModel({
-                name,
-                media
-            });
+            // const newBrand = new brandModel({
+            //     name,
+            //     media
+            // });
 
-            const result = await newBrand.save();
-            res.status(200).json({
-                status: 200,
-                message: "Thêm thương hiệu thành công",
-                data: result
-            });
+            // const result = await newBrand.save();
+            // res.status(200).json({
+            //     status: 200,
+            //     message: "Thêm thương hiệu thành công",
+            //     data: result
+            // });
+
+            try {
+                const results = await uploadToCloudinary(req.file.path, 'brands');
+
+                const newBrand = new brandModel({
+                    name,
+                    media: results.url,
+                    cloudinary_id: results.public_id
+                });
+
+                const saved = await newBrand.save();
+
+                res.status(200).json({
+                    status: 200,
+                    message: "Thêm brand thành công",
+                    data: saved
+                });
+            } catch (error) {
+                await deleteFile(req.file.path);
+                throw error;
+            }
 
         } catch (error) {
             // Xóa file nếu có lỗi
@@ -138,25 +160,35 @@ module.exports = {
             }
 
             // Xử lý media mới nếu có
-            if (req.file) {
-                try {
-                    // Xóa file cũ nếu có
-                    if (brand.media) {
-                        const oldFilename = brand.media.split('/').pop();
-                        const oldFilePath = path.join(__dirname, '../public/uploads', oldFilename);
-                        try {
-                            await deleteFile(oldFilePath);
-                        } catch (deleteError) {
-                            console.error('Error deleting old file:', deleteError);
-                        }
-                    }
+            // if (req.file) {
+            //     try {
+            //         // Xóa file cũ nếu có
+            //         if (brand.media) {
+            //             const oldFilename = brand.media.split('/').pop();
+            //             const oldFilePath = path.join(__dirname, '../public/uploads', oldFilename);
+            //             try {
+            //                 await deleteFile(oldFilePath);
+            //             } catch (deleteError) {
+            //                 console.error('Error deleting old file:', deleteError);
+            //             }
+            //         }
 
-                    // Cập nhật media mới
-                    brand.media = createFileUrl(req, req.file.filename);
-                } catch (mediaError) {
-                    console.error('Error handling media:', mediaError);
-                    throw new Error('Lỗi khi xử lý file media');
+            //         // Cập nhật media mới
+            //         brand.media = createFileUrl(req, req.file.filename);
+            //     } catch (mediaError) {
+            //         console.error('Error handling media:', mediaError);
+            //         throw new Error('Lỗi khi xử lý file media');
+            //     }
+            // }
+
+            if (req.file) {
+                if (brand.cloudinary_id) {
+                    await deleteFromCloudinary(brand.cloudinary_id);
                 }
+
+                const result = await uploadToCloudinary(req.file.path, 'brands');
+                brand.media = result.url;
+                brand.cloudinary_id = result.public_id;
             }
 
             // Cập nhật tên
@@ -202,10 +234,14 @@ module.exports = {
             }
 
             // Xóa file media
-            if (brand.media) {
-                const filename = brand.media.split('/').pop();
-                const filePath = path.join('public', 'uploads', filename);
-                await deleteFile(filePath);
+            // if (brand.media) {
+            //     const filename = brand.media.split('/').pop();
+            //     const filePath = path.join('public', 'uploads', filename);
+            //     await deleteFile(filePath);
+            // }
+
+            if (brand.cloudinary_id) {
+                await deleteFromCloudinary(brand.cloudinary_id);
             }
 
             // Thay đổi từ remove() sang deleteOne()
