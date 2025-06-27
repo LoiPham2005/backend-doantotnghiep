@@ -14,8 +14,8 @@ node_modules/
 
 
 # Ignore all files in uploads folder
-/public/uploads/**
+# /public/uploads/**
 
 # But keep the folder structure (if empty)
-!public/uploads/
-!public/uploads/.gitkeep
+# !public/uploads/
+# !public/uploads/.gitkeep
