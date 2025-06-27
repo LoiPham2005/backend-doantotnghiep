@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <!-- Logo 1: Thiết kế tối giản -->
+  <g transform="translate(0,0)">
+    <rect x="20" y="20" width="160" height="160" rx="20" fill="#FF6B6B"/>
+    <rect x="45" y="35" width="110" height="130" rx="15" fill="white"/>
+    <text x="100" y="120" text-anchor="middle" fill="#FF6B6B" font-family="Arial, sans-serif" font-weight="bold" font-size="24">CASO</text>
+  </g>
+
+  <!-- Logo 2: Thiết kế hiện đại với gradients -->
+  <g transform="translate(200,0)">
+    <defs>
+      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4158D0"/>
+        <stop offset="100%" style="stop-color:#C850C0"/>
+      </linearGradient>
+    </defs>
+    <circle cx="100" cy="100" r="80" fill="url(#grad1)"/>
+    <path d="M70 60 h60 v80 h-60 z" fill="white" rx="10"/>
+    <text x="100" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="20">LUXE</text>
+  </g>
+
+  <!-- Logo 3: Thiết kế hình học -->
+  <g transform="translate(400,0)">
+    <polygon points="100,20 180,100 100,180 20,100" fill="#00B4D8"/>
+    <rect x="70" y="60" width="60" height="80" rx="8" fill="white"/>
+    <circle cx="100" cy="150" r="8" fill="white"/>
+    <text x="100" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="18">GUARD</text>
+  </g>
+
+  <!-- Logo 4: Thiết kế hữu cơ -->
+  <g transform="translate(600,0)">
+    <path d="M100,20 C140,20 180,60 180,100 C180,140 140,180 100,180 C60,180 20,140 20,100 C20,60 60,20 100,20" fill="#4CAF50"/>
+    <rect x="70" y="50" width="60" height="100" rx="10" fill="white"/>
+    <path d="M80,60 C90,50 110,50 120,60" fill="none" stroke="white" stroke-width="3"/>
+    <text x="100" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="20">ECO</text>
+  </g>
+
+  <!-- Logo 5: Thiết kế công nghệ -->
+  <g transform="translate(0,200)">
+    <rect x="20" y="20" width="160" height="160" fill="#1A1A1A"/>
+    <circle cx="100" cy="100" r="50" fill="none" stroke="#00FF00" stroke-width="2"/>
+    <rect x="75" y="70" width="50" height="60" rx="5" fill="#00FF00"/>
+    <text x="100" y="160" text-anchor="middle" fill="#00FF00" font-family="Arial, sans-serif" font-weight="bold" font-size="20">TECH</text>
+  </g>
+
+  <!-- Logo 6: Thiết kế vui nhộn -->
+  <g transform="translate(200,200)">
+    <circle cx="100" cy="100" r="80" fill="#FFC107"/>
+    <rect x="70" y="50" width="60" height="100" rx="15" fill="white"/>
+    <circle cx="100" cy="70" r="8" fill="#FFC107"/>
+    <path d="M70,120 Q100,150 130,120" fill="none" stroke="#FFC107" stroke-width="4"/>
+    <text x="100" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="20">JOY</text>
+  </g>
+
+  <!-- Logo 7: Thiết kế sang trọng -->
+  <g transform="translate(400,200)">
+    <rect x="20" y="20" width="160" height="160" fill="#2C3E50"/>
+    <polygon points="100,40 140,100 100,160 60,100" fill="gold"/>
+    <rect x="85" y="70" width="30" height="60" rx="5" fill="white"/>
+    <text x="100" y="170" text-anchor="middle" fill="gold" font-family="Arial, sans-serif" font-weight="bold" font-size="20">ROYAL</text>
+  </g>
+
+  <!-- Logo 8: Thiết kế thể thao -->
+  <g transform="translate(600,200)">
+    <rect x="20" y="20" width="160" height="160" fill="#E91E63"/>
+    <path d="M60,60 L140,60 L140,140 L60,140 Z" fill="none" stroke="white" stroke-width="8"/>
+    <rect x="80" y="80" width="40" height="60" rx="5" fill="white"/>
+    <text x="100" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="20">SPORT</text>
+  </g>
+</svg>
