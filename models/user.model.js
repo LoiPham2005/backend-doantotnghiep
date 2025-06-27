@@ -20,7 +20,7 @@ const Users = new Schema({
     },
     is_active: {
         type: Boolean,
-        default: true // Mặc định tài khoản được kích hoạt
+        default: true 
     }
 }, {
     timestamps: true,
