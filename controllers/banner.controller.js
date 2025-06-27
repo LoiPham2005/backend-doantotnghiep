@@ -80,20 +80,21 @@ module.exports = {
                     banner.media = result.url;
                     banner.cloudinary_id = result.public_id;
 
-                    const updated = await banner.save();
-
-                    res.status(200).json({
-                        status: 200,
-                        message: "Cập nhật banner thành công",
-                        data: updated
-                    });
-
                 } catch (uploadError) {
                     // Xóa file tạm nếu upload thất bại
                     await deleteFile(req.file.path);
                     throw uploadError;
                 }
             }
+
+            // Lưu banner dù có upload file mới hay không
+            const updated = await banner.save();
+
+            return res.status(200).json({
+                status: 200,
+                message: "Cập nhật banner thành công",
+                data: updated
+            });
 
         } catch (error) {
             if (req.file) {
