@@ -17,34 +17,35 @@ const io = initializeSocket(server);
 app.set('io', io);
 
 // CORS configuration
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000", 
-  "https://web-admin-doantotnghiep.onrender.com"
-];
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "http://localhost:3000", 
+//   "https://web-admin-doantotnghiep.onrender.com"
+// ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true); 
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
-
-// CORS middleware 
 // app.use(cors({
-//   origin: '*', // ✅ Cho phép tất cả domain
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization']
+//   origin: function (origin, callback) {
+//     if (!origin) return callback(null, true);
+//     if (allowedOrigins.includes(origin)) {
+//       return callback(null, true); 
+//     }
+//     return callback(new Error('Not allowed by CORS'));
+//   },
+//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   credentials: true,
+//   allowedHeaders: ["Content-Type", "Authorization"]
 // }));
 
+// CORS middleware 
+app.use(cors({
+  origin: '*', // ✅ Cho phép tất cả domain
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // ✅ Cho phép gửi cookie
+}));
+
 // ✅ Đáp ứng OPTIONS request cho preflight
-app.options('*', cors());
+// app.options('*', cors());
 
 // Middlewares
 app.use(logger('dev'));
