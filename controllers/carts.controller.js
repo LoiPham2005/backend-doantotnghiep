@@ -114,10 +114,11 @@ module.exports = {
             res.status(200).json({
                 status: 200,
                 message: "Giỏ hàng của người dùng",
-                data: {
-                    items: cartItems,
-                    totalAmount: totalAmount
-                }
+                // data: {
+                //     items: cartItems,
+                //     totalAmount: totalAmount
+                // }
+                data: cartItems
             });
 
         } catch (error) {
