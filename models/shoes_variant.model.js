@@ -26,7 +26,7 @@ const shoesVariantSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['available', 'out_of_stock', 'discontinued'], // bạn có thể tùy chỉnh enum
+    enum: ['available', 'out_of_stock', 'discontinued'], 
     default: 'available'
   },
   created_at: {

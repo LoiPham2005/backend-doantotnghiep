@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 
 const Users = new Schema({
     avatar: { type: String, public_id: String },
+    fullname: { type: String, unique: true },
     username: { type: String, unique: true, required: true },
     email: { type: String, required: true },
     password: { type: String, required: true },

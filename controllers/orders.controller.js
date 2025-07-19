@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const PaymentHistory = require('../models/payment_history.model'); // Thêm import này
 const NotificationUser = require('../models/notification_user.model');
 const Notification = require('../models/notification.model');
+const shoesModel = require('../models/shoes.model');
 
 // Hàm tạo thông báo đơn hàng mới
 const createOrderNotification = async (order) => {
@@ -46,6 +47,27 @@ const createOrderNotification = async (order) => {
 
     } catch (error) {
         console.error('Error creating order notification:', error);
+    }
+};
+
+// Thêm hàm helper để kiểm tra và cập nhật trạng thái sản phẩm
+const updateProductStatus = async (shoesId) => {
+    try {
+        // Lấy tất cả variants của sản phẩm
+        const variants = await ShoesVariant.find({ shoes_id: shoesId });
+
+        // Kiểm tra nếu tất cả variants đều hết hàng
+        const allOutOfStock = variants.every(v => v.quantity_in_stock === 0);
+
+        if (allOutOfStock) {
+            // Cập nhật trạng thái sản phẩm thành hết hàng
+            await shoesModel.findByIdAndUpdate(shoesId, {
+                status: 'out_of_stock',
+                update_at: new Date()
+            });
+        }
+    } catch (error) {
+        console.error('Error updating product status:', error);
     }
 };
 
@@ -105,9 +127,16 @@ module.exports = {
                     throw new Error(`Sản phẩm ${variant._id} không đủ số lượng trong kho`);
                 }
 
-                // Cập nhật số lượng trong kho
+                // Cập nhật số lượng và trạng thái variant
                 variant.quantity_in_stock -= detail.quantity;
+                variant.status = variant.quantity_in_stock === 0 ? 'out_of_stock' : 'available';
                 await variant.save();
+
+                // Kiểm tra và cập nhật trạng thái sản phẩm
+                await updateProductStatus(variant.shoes_id);
+
+                console.log(`[Variant Update] Variant ${variant._id} stock after: ${variant.quantity_in_stock}, status: ${variant.status}`);
+
 
                 // Tạo chi tiết đơn hàng
                 return new OrderDetail({
