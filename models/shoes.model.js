@@ -34,7 +34,7 @@ const ShoeSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['active', 'out of stock', 'importing goods', 'hidden'],
+        enum: ['active', 'out_of_stock', 'importing_goods', 'hidden'],
         default: 'active'
     },
     category_id: {

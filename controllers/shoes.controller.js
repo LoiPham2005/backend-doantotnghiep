@@ -15,6 +15,7 @@ module.exports = {
     // Thêm sản phẩm mới
     addShoes: async (req, res) => {
         try {
+            
             const { name, description, brand_id, category_id, variants } = req.body;
 
             // // Xử lý media files
