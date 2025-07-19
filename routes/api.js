@@ -225,4 +225,7 @@ router.put('/notifications/user/mark-all-read', mdw.api_auth, notificationUsersC
 // Sửa route cho đánh dấu đã đọc thông báo
 router.put('/notifications/read/:notification_id', mdw.api_auth, notificationUsersController.markAsRead);
 
+// Lấy danh mục theo brand
+router.get('/category/by-brand/:brand_id', categoryController.getCategoriesByBrand);
+
 module.exports = router;

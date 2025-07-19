@@ -9,13 +9,19 @@ module.exports = {
     // add data
     add: async (req, res) => {
         try {
-            const { name } = req.body; // Assuming 'name' is the unique field
-            const existingCategory = await modelCategory.findOne({ name });
+            const { name, brand_id } = req.body;
+
+            // Kiểm tra tên danh mục đã tồn tại cho brand này chưa
+            const existingCategory = await modelCategory.findOne({ 
+                name, 
+                brand_id 
+            });
+            
             if (existingCategory) {
                 return res.status(400).json({
-                    "status": 400,
-                    "message": "Tên danh mục đã tồn tại",
-                    "data": []
+                    status: 400,
+                    message: "Tên danh mục đã tồn tại trong thương hiệu này",
+                    data: []
                 });
             }
 
@@ -27,32 +33,11 @@ module.exports = {
                 });
             }
 
-            // const media = createFileUrl(req, req.file.filename);
-
-            // const model = new modelCategory({
-            //     name,
-            //     media
-            // });
-            // console.log("Data to be saved:", model);
-            // const result = await model.save();
-            // if (result) {
-            //     res.json({
-            //         "status": 200,
-            //         "message": "Thêm thành công",
-            //         "data": result
-            //     });
-            // } else {
-            //     res.json({
-            //         "status": 400,
-            //         "message": "Thêm thất bại",
-            //         "data": []
-            //     });
-            // }
-
             const result = await uploadToCloudinary(req.file.path, 'categories');
 
             const category = new modelCategory({
                 name,
+                brand_id,
                 media: result.url,
                 cloudinary_id: result.public_id
             });
@@ -65,13 +50,12 @@ module.exports = {
             });
 
         } catch (err) {
-            console.error("Error while saving user:", err);
-            // Xóa file nếu có lỗi
+            console.error("Error while saving category:", err);
             if (req.file) {
                 await deleteFile(req.file.path);
             }
             res.status(500).json({
-                status: 500,
+                status: 500, 
                 message: "Lỗi khi thêm danh mục",
                 error: err.message
             });
@@ -313,6 +297,28 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi thay đổi trạng thái danh mục",
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy danh mục theo brand
+    getCategoriesByBrand: async (req, res) => {
+        try {
+            const { brand_id } = req.params;
+            // Lấy tất cả category có ít nhất 1 sản phẩm thuộc brand này
+            const shoes = await require('../models/shoes.model').find({ brand_id }).select('category_id');
+            const categoryIds = [...new Set(shoes.map(s => String(s.category_id)))];
+            const categories = await modelCategory.find({ _id: { $in: categoryIds }, is_active: true });
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách danh mục theo thương hiệu",
+                data: categories
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh mục theo thương hiệu",
                 error: error.message
             });
         }
