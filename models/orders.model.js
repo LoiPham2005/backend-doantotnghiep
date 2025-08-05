@@ -49,6 +49,15 @@ const orderSchema = new Schema({
             'return_rejected',    // Admin từ chối trả hàng
             'returned',           // Hàng đã được trả
             'refunded'            // Đã hoàn tiền (nếu có)
+
+
+        // 'pending',      // Chờ xác nhận
+        // 'confirmed',    // Đã xác nhận
+        // 'shipping',     // Đang giao hàng
+        // 'delivered',    // Giao thành công
+        // 'cancelled',      // Bị hủy
+        // 'returning',      // Đang trả hàng
+        // 'returned'        // Đã trả hàng
         ],
         default: 'pending'
     },

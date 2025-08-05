@@ -5,7 +5,7 @@ const momoConfig = {
     partnerCode: process.env.MOMO_PARTNER_CODE,
     accessKey: process.env.MOMO_ACCESS_KEY,
     secretKey: process.env.MOMO_SECRET_KEY,
-    redirectUrl: process.env.FRONTEND_URL + '/payment/result', // Sửa URL redirect
+    redirectUrl: 'momoapp://callback', // Sửa URL redirect
     ipnUrl: process.env.API_URL + '/api/momo/callback', // Sửa URL callback
     // apiEndpoint: 'https://test-payment.momo.vn/v2/gateway/api/create'
     apiEndpoint: process.env.ENDPOINT_URL
@@ -161,10 +161,40 @@ module.exports = {
                 signature
             } = req.body;
 
-            if (resultCode === 0) {
+            // Verify signature
+            const rawSignature = `accessKey=${momoConfig.accessKey}&amount=${amount}&extraData=${extraData}&orderId=${orderId}&orderInfo=${orderInfo}&orderType=${orderType}&partnerCode=${partnerCode}&payType=${payType}&requestId=${requestId}&responseTime=${responseTime}&resultCode=${resultCode}&transId=${transId}`;
+
+            const expectedSignature = crypto.createHmac('sha256', momoConfig.secretKey)
+                .update(rawSignature)
+                .digest('hex');
+
+            if (signature !== expectedSignature) {
+                return res.status(403).json({
+                    status: 403,
+                    message: "Invalid signature"
+                });
+            }
+
+            if (resultCode === '0') {
+                // Update order status
+                await Order.findByIdAndUpdate(orderId, {
+                    status: 'confirmed',
+                    payment_status: 'paid',
+                    momo_trans_id: transId
+                });
+
+                // Create payment history
+                await PaymentHistory.create({
+                    order_id: orderId,
+                    amount: amount,
+                    payment_method: 'MOMO',
+                    transaction_id: transId,
+                    status: 'completed'
+                });
+
                 res.status(200).json({
                     status: 200,
-                    message: "Thanh toán thành công",
+                    message: "Payment successful",
                     data: {
                         orderId,
                         transId,
@@ -172,9 +202,15 @@ module.exports = {
                     }
                 });
             } else {
+                // Update order status to failed
+                await Order.findByIdAndUpdate(orderId, {
+                    status: 'cancelled',
+                    payment_status: 'failed'
+                });
+
                 res.status(400).json({
                     status: 400,
-                    message: "Thanh toán thất bại",
+                    message: "Payment failed",
                     error: message
                 });
             }
@@ -183,7 +219,7 @@ module.exports = {
             console.error("Error handling MoMo callback:", error);
             res.status(500).json({
                 status: 500,
-                message: "Lỗi xử lý callback",
+                message: "Error processing callback",
                 error: error.message
             });
         }

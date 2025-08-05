@@ -40,7 +40,7 @@ module.exports = {
             });
 
             const savedVariant = await newVariant.save();
-            
+
             const populatedVariant = await ShoesVariant.findById(savedVariant._id)
                 .populate('size_id')
                 .populate('color_id')
@@ -116,14 +116,16 @@ module.exports = {
     // Cập nhật variant
     updateVariant: async (req, res) => {
         try {
-            const { price, quantity_in_stock, status } = req.body; // Thêm status
+            const { price, quantity_in_stock, status, color_id, size_id } = req.body; 
 
             const updatedVariant = await ShoesVariant.findByIdAndUpdate(
                 req.params.id,
-                { 
-                    price, 
+                {
+                    price,
                     quantity_in_stock,
-                    status // Thêm status vào update
+                    status,
+                    color_id, 
+                    size_id   
                 },
                 { new: true }
             )

@@ -12,11 +12,11 @@ module.exports = {
             const { name, brand_id } = req.body;
 
             // Kiểm tra tên danh mục đã tồn tại cho brand này chưa
-            const existingCategory = await modelCategory.findOne({ 
-                name, 
-                brand_id 
+            const existingCategory = await modelCategory.findOne({
+                name,
+                brand_id
             });
-            
+
             if (existingCategory) {
                 return res.status(400).json({
                     status: 400,
@@ -55,7 +55,7 @@ module.exports = {
                 await deleteFile(req.file.path);
             }
             res.status(500).json({
-                status: 500, 
+                status: 500,
                 message: "Lỗi khi thêm danh mục",
                 error: err.message
             });
@@ -306,10 +306,11 @@ module.exports = {
     getCategoriesByBrand: async (req, res) => {
         try {
             const { brand_id } = req.params;
-            // Lấy tất cả category có ít nhất 1 sản phẩm thuộc brand này
-            const shoes = await require('../models/shoes.model').find({ brand_id }).select('category_id');
-            const categoryIds = [...new Set(shoes.map(s => String(s.category_id)))];
-            const categories = await modelCategory.find({ _id: { $in: categoryIds }, is_active: true });
+            const categories = await modelCategory.find({
+                brand_id,
+                is_active: true
+            });
+
             res.status(200).json({
                 status: 200,
                 message: "Danh sách danh mục theo thương hiệu",

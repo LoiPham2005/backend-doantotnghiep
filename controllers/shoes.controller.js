@@ -5,6 +5,7 @@ const ShoesVariant = require('../models/shoes_variant.model');
 const path = require('path'); // Thêm import path
 const Brand = require('../models/brand.model'); // Import model Brand
 const Category = require('../models/category.model'); // Import model Category
+const Size = require('../models/sizes.model'); // Import model Category
 // const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
@@ -15,7 +16,7 @@ module.exports = {
     // Thêm sản phẩm mới
     addShoes: async (req, res) => {
         try {
-            
+
             const { name, description, brand_id, category_id, variants } = req.body;
 
             // // Xử lý media files
@@ -445,12 +446,14 @@ module.exports = {
     },
 
     // Lọc sản phẩm
+    // 
+
     filterShoes: async (req, res) => {
         try {
             const {
                 category_id,
                 brand_id,
-                size_id,
+                size_value, // ✅ đổi từ size_id sang size_value
                 min_price,
                 max_price,
                 sort_by,
@@ -458,36 +461,46 @@ module.exports = {
                 limit = 10
             } = req.query;
 
-            // Build query
-            // let query = {};
-            // Thêm điều kiện status khác hidden
+            // Build base query
             const query = { status: { $ne: 'hidden' } };
 
-            // Filter by category
-            if (category_id) {
-                query.category_id = category_id;
-            }
+            if (category_id) query.category_id = category_id;
+            if (brand_id) query.brand_id = brand_id;
 
-            // Filter by brand  
-            if (brand_id) {
-                query.brand_id = brand_id;
-            }
-
-            // Get base shoes query
+            // Tìm tất cả sản phẩm thỏa query
             let shoes = await Shoes.find(query)
                 .populate('brand_id')
                 .populate('category_id');
 
-            // Get variants for all shoes
+            // Nếu có truyền size_value, tìm size_id tương ứng
+            let sizeIdFilter = null;
+            if (size_value) {
+                const size = await Size.findOne({ size_value: size_value });
+                if (size) {
+                    sizeIdFilter = size._id;
+                } else {
+                    // Không tìm thấy size -> trả rỗng luôn
+                    return res.status(200).json({
+                        status: 200,
+                        message: "Không có sản phẩm phù hợp với size.",
+                        data: {
+                            currentPage: parseInt(page),
+                            totalPages: 0,
+                            totalItems: 0,
+                            limit: parseInt(limit),
+                            shoes: []
+                        }
+                    });
+                }
+            }
+
             const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
                 let variantQuery = { shoes_id: shoe._id };
 
-                // Filter by size
-                if (size_id) {
-                    variantQuery.size_id = size_id;
+                if (sizeIdFilter) {
+                    variantQuery.size_id = sizeIdFilter;
                 }
 
-                // Filter by price range
                 if (min_price || max_price) {
                     variantQuery.price = {};
                     if (min_price) variantQuery.price.$gte = parseFloat(min_price);
@@ -504,10 +517,10 @@ module.exports = {
                 };
             }));
 
-            // Filter out shoes with no matching variants
+            // Lọc các sản phẩm có ít nhất 1 variant
             let filteredShoes = shoesWithVariants.filter(shoe => shoe.variants.length > 0);
 
-            // Sort processing
+            // Sorting
             if (sort_by) {
                 switch (sort_by) {
                     case 'price_asc':
@@ -548,12 +561,6 @@ module.exports = {
                     totalItems,
                     limit: parseInt(limit),
                     shoes: filteredShoes,
-                    // pagination: {
-                    //     currentPage: parseInt(page),
-                    //     totalPages,
-                    //     totalItems,
-                    //     limit: parseInt(limit)
-                    // }
                 }
             });
 
@@ -566,6 +573,7 @@ module.exports = {
             });
         }
     },
+
 
     // Lấy sản phẩm bán chạy
     getTopSellingProducts: async (req, res) => {
@@ -674,12 +682,41 @@ module.exports = {
                 .limit(limit);
 
             // Get variants for each shoe
+            // const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
+            //     const variants = await ShoesVariant.find({ shoes_id: shoe._id })
+            //         .populate('size_id')
+            //         .populate('color_id');
+            //     return {
+            //         ...shoe._doc,
+            //         variants
+            //     };
+            // }));
+
+
+            // Get variants for each shoe and calculate min/max prices
             const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
                 const variants = await ShoesVariant.find({ shoes_id: shoe._id })
                     .populate('size_id')
                     .populate('color_id');
+
+                // Calculate min and max prices from variants
+                const prices = variants.map(v => v.price);
+                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
                 return {
-                    ...shoe._doc,
+                    _id: shoe._id,
+                    media: shoe.media,
+                    name: shoe.name,
+                    description: shoe.description,
+                    brand_id: shoe.brand_id,
+                    status: shoe.status,
+                    category_id: shoe.category_id,
+                    created_at: shoe.created_at,
+                    update_at: shoe.update_at,
+                    __v: shoe.__v,
+                    minPrice,
+                    maxPrice,
                     variants
                 };
             }));

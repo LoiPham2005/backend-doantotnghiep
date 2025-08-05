@@ -273,17 +273,59 @@ module.exports = {
     },
 
     // Lấy chi tiết đơn hàng theo ID
+    // getOrderById: async (req, res) => {
+    //     try {
+    //         const order = await Order.findById(req.params.id)
+    //             .populate('user_id', 'username email')
+    //             .populate('address_id')
+    //             .populate({
+    //                 path: 'user_voucher_id',
+    //                 populate: {
+    //                     path: 'voucher_id'
+    //                 }
+    //             });
+
+    //         if (!order) {
+    //             return res.status(404).json({
+    //                 status: 404,
+    //                 message: "Không tìm thấy đơn hàng"
+    //             });
+    //         }
+
+    //         const orderDetails = await OrderDetail.find({ order_id: order._id })
+    //             .populate({
+    //                 path: 'variant_id',
+    //                 populate: [
+    //                     { path: 'shoes_id' },
+    //                     { path: 'size_id' },
+    //                     { path: 'color_id' }
+    //                 ]
+    //             });
+
+    //         res.status(200).json({
+    //             status: 200,
+    //             message: "Chi tiết đơn hàng",
+    //             data: {
+    //                 order,
+    //                 orderDetails
+    //             }
+    //         });
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi lấy chi tiết đơn hàng",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
+
+    // Lấy chi tiết đơn hàng theo ID
     getOrderById: async (req, res) => {
         try {
             const order = await Order.findById(req.params.id)
                 .populate('user_id', 'username email')
-                .populate('address_id')
-                .populate({
-                    path: 'user_voucher_id',
-                    populate: {
-                        path: 'voucher_id'
-                    }
-                });
+                .populate('address_id');
 
             if (!order) {
                 return res.status(404).json({
@@ -292,25 +334,69 @@ module.exports = {
                 });
             }
 
+            // Lấy chi tiết đơn hàng và populate thông tin cần thiết
             const orderDetails = await OrderDetail.find({ order_id: order._id })
                 .populate({
                     path: 'variant_id',
                     populate: [
-                        { path: 'shoes_id' },
-                        { path: 'size_id' },
-                        { path: 'color_id' }
+                        {
+                            path: 'shoes_id',
+                            select: 'name media'
+                        },
+                        {
+                            path: 'color_id',
+                            select: 'name value'
+                        },
+                        {
+                            path: 'size_id',
+                            select: 'size_value'
+                        }
                     ]
                 });
+
+            // Format lại dữ liệu theo yêu cầu
+            const formattedResponse = {
+                order: {
+                    _id: order._id,
+                    user: {
+                        username: order.user_id.username,
+                        email: order.user_id.email
+                    },
+                    total_price: order.total_price,
+                    discount: order.discount,
+                    final_total: order.final_total,
+                    payment_method: order.payment_method,
+                    status: order.status,
+                    shipping_fee: order.shipping_fee,
+                    full_name: order.address_id.full_name,
+                    phone: order.address_id.phone,
+                    receiving_address: order.address_id.receiving_address,
+                    commune: order.address_id.commune,
+                    district: order.address_id.district,
+                    province: order.address_id.province,
+                    // createdAt: order.createdAt
+                },
+                orderDetails: orderDetails.map(detail => ({
+                    productName: detail.variant_id.shoes_id.name,
+                    image: detail.variant_id.shoes_id.media?.[0]?.url || '',
+                    color: {
+                        name: detail.variant_id.color_id.name,
+                        hex: detail.variant_id.color_id.value
+                    },
+                    size: detail.variant_id.size_id.size_value,
+                    price: detail.price_at_purchase,
+                    quantity: detail.quantity
+                }))
+            };
 
             res.status(200).json({
                 status: 200,
                 message: "Chi tiết đơn hàng",
-                data: {
-                    order,
-                    orderDetails
-                }
+                data: formattedResponse
             });
+
         } catch (error) {
+            console.error('Error getting order details:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy chi tiết đơn hàng",
@@ -375,7 +461,7 @@ module.exports = {
         }
     },
 
-    // Lấy danh sách đơn hàng của user 
+    // Lấy danh sách đơn hàng của user với thông tin chi tiết
     getUserOrders: async (req, res) => {
         try {
             const { user_id } = req.params;
@@ -391,7 +477,8 @@ module.exports = {
                 .populate({
                     path: 'user_voucher_id',
                     populate: {
-                        path: 'voucher_id'
+                        path: 'voucher_id',
+                        select: 'name code discount_type discount_value'
                     }
                 })
                 .sort({ createdAt: -1 });
@@ -401,14 +488,109 @@ module.exports = {
                     .populate({
                         path: 'variant_id',
                         populate: [
-                            { path: 'shoes_id' },
-                            { path: 'size_id' },
-                            { path: 'color_id' }
+                            {
+                                path: 'shoes_id',
+                                select: 'name description media'
+                            },
+                            {
+                                path: 'size_id',
+                                select: 'size_value'
+                            },
+                            {
+                                path: 'color_id',
+                                select: 'name value'
+                            }
                         ]
                     });
+
+                // Transform order details để có cấu trúc dễ đọc hơn
+                const transformedDetails = details.map(detail => {
+                    // Kiểm tra nếu variant_id là null hoặc không có shoes_id
+                    if (!detail.variant_id || !detail.variant_id.shoes_id) {
+                        return {
+                            _id: detail._id,
+                            quantity: detail.quantity,
+                            price_at_purchase: detail.price_at_purchase,
+                            product: {
+                                _id: null,
+                                name: 'Sản phẩm không còn tồn tại',
+                                description: '',
+                                image: '',
+                                media: []
+                            },
+                            variant: {
+                                _id: null,
+                                color: {
+                                    name: 'N/A',
+                                    value: '#000000'
+                                },
+                                size: 'N/A',
+                                price: detail.price_at_purchase,
+                                quantity_in_stock: 0
+                            },
+                            subtotal: detail.quantity * detail.price_at_purchase
+                        };
+                    }
+
+                    // Nếu có đầy đủ thông tin
+                    return {
+                        _id: detail._id,
+                        quantity: detail.quantity,
+                        price_at_purchase: detail.price_at_purchase,
+                        // product: {
+                        // _id: detail.variant_id.shoes_id._id,
+                        name: detail.variant_id.shoes_id.name,
+                        description: detail.variant_id.shoes_id.description,
+                        image: detail.variant_id.shoes_id.media?.[0]?.url || '',
+                        media: detail.variant_id.shoes_id.media || []
+                        // }
+                        ,
+                        variant: {
+                            _id: detail.variant_id._id,
+                            color: {
+                                name: detail.variant_id.color_id?.name || 'N/A',
+                                value: detail.variant_id.color_id?.value || '#000000'
+                            },
+                            size: detail.variant_id.size_id?.size_value || 'N/A',
+                            price: detail.variant_id.price || detail.price_at_purchase,
+                            quantity_in_stock: detail.variant_id.quantity_in_stock || 0
+                        },
+                        subtotal: detail.quantity * detail.price_at_purchase
+                    };
+                });
+
+                // Transform order để có cấu trúc rõ ràng hơn
                 return {
-                    ...order._doc,
-                    details
+                    _id: order._id,
+                    // order_info: {
+                    total_price: order.total_price,
+                    shipping_fee: order.shipping_fee,
+                    discount: order.discount,
+                    final_total: order.final_total,
+                    payment_method: order.payment_method,
+                    status: order.status,
+                    created_at: order.createdAt,
+                    updated_at: order.updatedAt
+                    // }
+                    ,
+                    shipping_address: order.address_id ? {
+                        full_name: order.address_id.full_name,
+                        phone: order.address_id.phone,
+                        province: order.address_id.province,
+                        district: order.address_id.district,
+                        commune: order.address_id.commune,
+                        receiving_address: order.address_id.receiving_address,
+                        is_default: order.address_id.is_default
+                    } : null
+                    ,
+                    voucher_info: order.user_voucher_id ? {
+                        name: order.user_voucher_id.voucher_id.name,
+                        voucher_code: order.user_voucher_id.voucher_id.code,
+                        discount_type: order.user_voucher_id.voucher_id.discount_type,
+                        discount_value: order.user_voucher_id.voucher_id.discount_value
+                    } : null,
+                    total_items: transformedDetails.length,
+                    order_items: transformedDetails,
                 };
             }));
 

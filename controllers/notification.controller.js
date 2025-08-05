@@ -17,29 +17,60 @@ module.exports = {
             const savedNotification = await newNotification.save();
 
             // Xử lý tạo notification cho users
+            let notificationUsers = [];
             if (type === 'order' && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
-                const notificationUsers = selectedUsers.map(userId => ({
+                notificationUsers = selectedUsers.map(userId => ({
                     notification_id: savedNotification._id,
                     user_id: userId
                 }));
-                await NotificationUser.insertMany(notificationUsers);
             } else if (type === 'system' || type === 'promotion') {
                 const users = await User.find({ role: 'user' });
-                const notificationUsers = users.map(user => ({
+                notificationUsers = users.map(user => ({
                     notification_id: savedNotification._id,
                     user_id: user._id
                 }));
+            }
+
+            // Lưu notification_users
+            if (notificationUsers.length > 0) {
                 await NotificationUser.insertMany(notificationUsers);
             }
 
             // Emit socket event
             const io = req.app.get('io');
             if (io) {
-                const notificationData = {
-                    ...savedNotification.toObject(),
-                    selectedUsers: type === 'order' ? selectedUsers : null
-                };
-                io.emit('new notification', notificationData);
+                if (type === 'order' && selectedUsers?.length > 0) {
+                    // Emit cho từng user được chọn
+                    for (const userId of selectedUsers) {
+                        const userNotification = await NotificationUser.findOne({
+                            notification_id: savedNotification._id,
+                            user_id: userId
+                        }).populate({
+                            path: 'notification_id',
+                            select: 'title content type createdAt'
+                        });
+
+                        io.to(`notification_${userId}`).emit('notification_received', {
+                            notification: userNotification
+                        });
+                    }
+                } else {
+                    // Emit cho tất cả users với system/promotion notification
+                    const allUsers = await User.find({ role: 'user' });
+                    for (const user of allUsers) {
+                        const userNotification = await NotificationUser.findOne({
+                            notification_id: savedNotification._id,
+                            user_id: user._id
+                        }).populate({
+                            path: 'notification_id',
+                            select: 'title content type createdAt'
+                        });
+
+                        io.to(`notification_${user._id}`).emit('notification_received', {
+                            notification: userNotification
+                        });
+                    }
+                }
             }
 
             res.status(200).json({
@@ -49,6 +80,7 @@ module.exports = {
             });
 
         } catch (error) {
+            console.error('Error creating notification:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi tạo thông báo",

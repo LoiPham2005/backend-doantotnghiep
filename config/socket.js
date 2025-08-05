@@ -97,21 +97,38 @@ function initializeSocket(server) {
       }
     });
 
+    // User joins notification room
+    socket.on('join notification room', (userId) => {
+      console.log(`User ${userId} joined notification room`);
+      socket.join(`notification_${userId}`);
+      connectedUsers.set(userId, socket.id);
+    });
+
     // Handle new notification
-    socket.on('new notification', (notification) => {
-      if (notification.selectedUsers && notification.selectedUsers.length > 0) {
-        notification.selectedUsers.forEach(userId => {
-          const userSocketId = connectedUsers.get(userId);
-          if (userSocketId) {
-            io.to(userSocketId).emit('notification received', notification);
-            
-            // Trigger cập nhật danh sách thông báo
-            io.to(userId.toString()).emit('refresh notifications');
-          }
+    socket.on('notification_received', async (data) => {
+      try {
+        const { notification } = data;
+        const userId = notification.user_id;
+        
+        // Emit to specific user's room
+        io.to(`notification_${userId}`).emit('notification_received', {
+          notification
         });
-      } else {
-        // Gửi thông báo cho tất cả user nếu là thông báo hệ thống/khuyến mãi
-        socket.broadcast.emit('notification received', notification);
+      } catch (error) {
+        console.error('Error handling notification:', error);
+      }
+    });
+
+    // Notification read event
+    socket.on('notification read', async ({ userId, notificationId }) => {
+      try {
+        // Emit to specific user's room
+        io.to(`notification_${userId}`).emit('notification updated', {
+          id: notificationId,
+          is_read: true
+        });
+      } catch (error) {
+        console.error('Error handling notification read:', error);
       }
     });
 
