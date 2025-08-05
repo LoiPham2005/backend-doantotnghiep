@@ -26,6 +26,16 @@ module.exports = {
                 });
             }
 
+
+            // Check nếu đã tồn tại trong favorites
+            const existing = await Favourite.findOne({ user_id, shoes_id });
+            if (existing) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Sản phẩm đã có trong danh sách yêu thích"
+                });
+            }
+
             // Thêm vào favorites
             const favourite = new Favourite({ user_id, shoes_id });
             await favourite.save();
@@ -43,12 +53,12 @@ module.exports = {
 
         } catch (error) {
             // Xử lý lỗi duplicate key (đã thêm vào yêu thích rồi)
-            if (error.code === 11000) {
-                return res.status(400).json({
-                    status: 400,
-                    message: "Sản phẩm đã có trong danh sách yêu thích"
-                });
-            }
+            // if (error.code === 11000) {
+            //     return res.status(400).json({
+            //         status: 400,
+            //         message: "Sản phẩm đã có trong danh sách yêu thích"
+            //     });
+            // }
 
             res.status(500).json({
                 status: 500,

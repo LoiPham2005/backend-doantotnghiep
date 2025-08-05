@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  family: 4,
 });
 
 // Hàm tạo mã OTP
@@ -153,9 +154,9 @@ const deleteOtp = async (req, res) => {
   try {
     const result = await modelOTP.findOneAndDelete({ email: req.params.email });
     if (result) {
-      res.status(200).json({status: 200, message: 'Xóa OTP thành công' });
+      res.status(200).json({ status: 200, message: 'Xóa OTP thành công' });
     } else {
-      res.status(404).json({status: 404, message: 'Không tìm thấy OTP' });
+      res.status(404).json({ status: 404, message: 'Không tìm thấy OTP' });
     }
   } catch (error) {
     console.error('Lỗi xóa OTP:', error);

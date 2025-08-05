@@ -27,6 +27,8 @@ const returnRequestController = require('../controllers/return_request.controlle
 const messagesController = require('../controllers/message.controller');
 const momo = require('../controllers/momo.controller');
 const statisticsController = require('../controllers/statistics.controller');
+const aiController = require('../controllers/aiSuggest.controller');
+const aiController2 = require('../controllers/ai_suggest_openrouter.controller');
 
 // đăng kí , đăng nhập
 router.post('/users/login', userController.login);
@@ -228,4 +230,12 @@ router.put('/notifications/read/:notification_id', mdw.api_auth, notificationUse
 // Lấy danh mục theo brand
 router.get('/category/by-brand/:brand_id', categoryController.getCategoriesByBrand);
 
+
+// AI tích hợp
+router.post('/suggest', mdw.api_auth, aiController.suggestProducts);
+router.get('/chats/:user_id', mdw.api_auth, aiController.getChatHistory);
+router.delete('/chats/:chat_id', mdw.api_auth, aiController.deleteChat);
+router.delete('/chats/user/:user_id', mdw.api_auth, aiController.deleteAllChats);
+
+router.post('/suggest2', mdw.api_auth, aiController2.suggestProducts);
 module.exports = router;
