@@ -2,19 +2,26 @@ var express = require('express');
 var router = express.Router();
 const modelCategory = require('../models/category.model');
 const path = require('path');
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 module.exports = {
     // add data
     add: async (req, res) => {
         try {
-            const { name } = req.body; // Assuming 'name' is the unique field
-            const existingCategory = await modelCategory.findOne({ name });
+            const { name, brand_id } = req.body;
+
+            // Kiểm tra tên danh mục đã tồn tại cho brand này chưa
+            const existingCategory = await modelCategory.findOne({
+                name,
+                brand_id
+            });
+
             if (existingCategory) {
                 return res.status(400).json({
-                    "status": 400,
-                    "message": "Tên danh mục đã tồn tại",
-                    "data": []
+                    status: 400,
+                    message: "Tên danh mục đã tồn tại trong thương hiệu này",
+                    data: []
                 });
             }
 
@@ -26,30 +33,24 @@ module.exports = {
                 });
             }
 
-            const media = createFileUrl(req, req.file.filename);
+            const result = await uploadToCloudinary(req.file.path, 'categories');
 
-            const model = new modelCategory({
+            const category = new modelCategory({
                 name,
-                media
+                brand_id,
+                media: result.url,
+                cloudinary_id: result.public_id
             });
-            console.log("Data to be saved:", model);
-            const result = await model.save();
-            if (result) {
-                res.json({
-                    "status": 200,
-                    "message": "Thêm thành công",
-                    "data": result
-                });
-            } else {
-                res.json({
-                    "status": 400,
-                    "message": "Thêm thất bại",
-                    "data": []
-                });
-            }
+
+            const saved = await category.save();
+            res.status(200).json({
+                status: 200,
+                message: "Thêm danh mục thành công",
+                data: saved
+            });
+
         } catch (err) {
-            console.error("Error while saving user:", err);
-            // Xóa file nếu có lỗi
+            console.error("Error while saving category:", err);
             if (req.file) {
                 await deleteFile(req.file.path);
             }
@@ -66,7 +67,7 @@ module.exports = {
         try {
             const isAdmin = req.query.isAdmin === 'true';
             let query = {};
-            
+
             // Nếu không phải admin, chỉ lấy các danh mục active
             if (!isAdmin) {
                 query.is_active = true;
@@ -146,17 +147,27 @@ module.exports = {
             }
 
             // Xử lý media mới nếu có
+            // if (req.file) {
+            //     // Xóa file cũ
+            //     const oldMediaUrl = category.media;
+            //     if (oldMediaUrl) {
+            //         const filename = oldMediaUrl.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+
+            //     // Cập nhật media mới
+            //     category.media = createFileUrl(req, req.file.filename);
+            // }
+
             if (req.file) {
-                // Xóa file cũ
-                const oldMediaUrl = category.media;
-                if (oldMediaUrl) {
-                    const filename = oldMediaUrl.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+                if (category.cloudinary_id) {
+                    await deleteFromCloudinary(category.cloudinary_id);
                 }
 
-                // Cập nhật media mới
-                category.media = createFileUrl(req, req.file.filename);
+                const result = await uploadToCloudinary(req.file.path, 'categories');
+                category.media = result.url;
+                category.cloudinary_id = result.public_id;
             }
 
             // Cập nhật tên
@@ -196,20 +207,40 @@ module.exports = {
     // Xóa dữ liệu theo ID
     delete: async (req, res) => {
         try {
-            const result = await modelCategory.findByIdAndDelete(req.params.id);
-            if (result) {
-                res.json({
-                    "status": 200,
-                    "message": "Xóa thành công",
-                    "data": result
-                });
-            } else {
-                res.json({
-                    "status": 400,
-                    "message": "Xóa thất bại",
-                    "data": []
+            // const result = await modelCategory.findByIdAndDelete(req.params.id);
+            // if (result) {
+            //     res.json({
+            //         "status": 200,
+            //         "message": "Xóa thành công",
+            //         "data": result
+            //     });
+            // } else {
+            //     res.json({
+            //         "status": 400,
+            //         "message": "Xóa thất bại",
+            //         "data": []
+            //     });
+            // }
+
+            const category = await modelCategory.findById(req.params.id);
+            if (!category) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy danh mục"
                 });
             }
+
+            if (category.cloudinary_id) {
+                await deleteFromCloudinary(category.cloudinary_id);
+            }
+
+            await modelCategory.deleteOne({ _id: req.params.id });
+
+            res.status(200).json({
+                status: 200,
+                message: "Xóa danh mục thành công"
+            });
+
         } catch (error) {
             console.log(error);
         }
@@ -266,6 +297,29 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi thay đổi trạng thái danh mục",
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy danh mục theo brand
+    getCategoriesByBrand: async (req, res) => {
+        try {
+            const { brand_id } = req.params;
+            const categories = await modelCategory.find({
+                brand_id,
+                is_active: true
+            });
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách danh mục theo thương hiệu",
+                data: categories
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh mục theo thương hiệu",
                 error: error.message
             });
         }

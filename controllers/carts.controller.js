@@ -97,27 +97,176 @@ module.exports = {
     },
 
     // Lấy giỏ hàng của user
+    // getCartByUser: async (req, res) => {
+    //     try {
+    //         const { user_id } = req.params;
+
+    //         const cartItems = await Cart.find({ user_id })
+    //             .populate('variant_id',)
+    //             .sort({ createdAt: -1 });
+
+    //         // Tính tổng tiền
+    //         let totalAmount = 0;
+    //         cartItems.forEach(item => {
+    //             totalAmount += item.variant_id.price * item.quantity;
+    //         });
+
+    //         res.status(200).json({
+    //             status: 200,
+    //             message: "Giỏ hàng của người dùng",
+    //             // data: {
+    //             //     items: cartItems,
+    //             //     totalAmount: totalAmount
+    //             // }
+    //             data: cartItems
+    //         });
+
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi lấy giỏ hàng",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
+    // getCartByUser: async (req, res) => {
+    //     try {
+    //         const { user_id } = req.params;
+
+    //         const cartItems = await Cart.find({ user_id })
+    //             .populate({
+    //                 path: 'variant_id',
+    //                 populate: {
+    //                     path: 'shoes_id',
+    //                     select: 'name media'
+    //                 }
+    //             })
+    //             .sort({ createdAt: -1 });
+
+    //         const transformedCartItems = cartItems.map(item => {
+    //             const variant = item.variant_id;
+    //             const shoes = variant?.shoes_id;
+
+    //             return {
+    //                 ...item.toObject(),
+    //                 product_name: shoes?.name || '',
+    //                 product_image: shoes?.media?.[0]?.url || '',
+    //                 product_price: variant?.price || 0
+    //             };
+    //         });
+
+    //         res.status(200).json({
+    //             status: 200,
+    //             message: "Giỏ hàng của người dùng",
+    //             data: transformedCartItems
+    //         });
+
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi lấy giỏ hàng",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
+
+    // getCartByUser: async (req, res) => {
+    //     try {
+    //         const { user_id } = req.params;
+
+    //         const cartItems = await Cart.find({ user_id })
+    //             .populate({
+    //                 path: 'variant_id',
+    //                 populate: {
+    //                     path: 'shoes_id',
+    //                     select: 'name media' // Chỉ lấy name, media để thêm thông tin
+    //                 }
+    //             })
+    //             .sort({ createdAt: -1 });
+
+    //         const transformedCartItems = cartItems.map(item => {
+    //             const variant = item.variant_id;
+    //             const shoes = variant?.shoes_id;
+
+    //             return {
+    //                 ...item.toObject(),
+    //                 // Ghi đè shoes_id: lấy ID thay vì object
+    //                 variant_id: {
+    //                     ...variant.toObject(),
+    //                     shoes_id: shoes?._id || null  // chỉ giữ ID
+    //                 },
+    //                 product_name: shoes?.name || '',
+    //                 product_image: shoes?.media?.[0]?.url || '',
+    //                 product_price: variant?.price || 0
+    //             };
+    //         });
+
+    //         res.status(200).json({
+    //             status: 200,
+    //             message: "Giỏ hàng của người dùng",
+    //             data: transformedCartItems
+    //         });
+
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi lấy giỏ hàng",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
+    // cập nhật thêm màu sắc và size
     getCartByUser: async (req, res) => {
         try {
             const { user_id } = req.params;
 
             const cartItems = await Cart.find({ user_id })
-                .populate('variant_id')
+                .populate({
+                    path: 'variant_id',
+                    populate: [
+                        {
+                            path: 'shoes_id',
+                            select: 'name media'
+                        },
+                        {
+                            path: 'color_id',
+                            select: 'name value'
+                        },
+                        {
+                            path: 'size_id',
+                            select: 'size_value'
+                        }
+                    ]
+                })
                 .sort({ createdAt: -1 });
 
-            // Tính tổng tiền
-            let totalAmount = 0;
-            cartItems.forEach(item => {
-                totalAmount += item.variant_id.price * item.quantity;
+            const transformedCartItems = cartItems.map(item => {
+                const variant = item.variant_id;
+                const shoes = variant?.shoes_id;
+                const color = variant?.color_id;
+                const size = variant?.size_id;
+
+                return {
+                    ...item.toObject(),
+                    variant_id: {
+                        ...variant.toObject(),
+                        shoes_id: shoes?._id || null
+                    },
+                    product_name: shoes?.name || '',
+                    product_image: shoes?.media?.[0]?.url || '',
+                    product_price: variant?.price || 0,
+                    color: color ? { name: color.name, value: color.value } : null,
+                    size: size ? { name: size.name, value: size.value } : null
+                };
             });
 
             res.status(200).json({
                 status: 200,
                 message: "Giỏ hàng của người dùng",
-                data: {
-                    items: cartItems,
-                    totalAmount: totalAmount
-                }
+                data: transformedCartItems
             });
 
         } catch (error) {
@@ -128,6 +277,8 @@ module.exports = {
             });
         }
     },
+
+
 
     // Cập nhật số lượng trong giỏ hàng
     updateCartItem: async (req, res) => {

@@ -1,21 +1,58 @@
 const Review = require('../models/reviews.model');
 const Order = require('../models/orders.model');
+const Shoes = require('../models/shoes.model');
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose'); // Thêm dòng này
+const mongoose = require('mongoose');
+
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // Helper function để xóa file
-const deleteFile = (filePath) => {
-    return new Promise((resolve, reject) => {
-        fs.unlink(filePath, (err) => {
-            if (err) {
-                console.error(`Error deleting file ${filePath}:`, err);
-                reject(err);
-            } else {
-                resolve();
+// const deleteFile = (filePath) => {
+//     return new Promise((resolve, reject) => {
+//         fs.unlink(filePath, (err) => {
+//             if (err) {
+//                 console.error(`Error deleting file ${filePath}:`, err);
+//                 reject(err);
+//             } else {
+//                 resolve();
+//             }
+//         });
+//     });
+// };
+
+// Thêm hàm helper để cập nhật rating trung bình
+const updateAverageRating = async (productId) => {
+    try {
+        const avgRating = await Review.aggregate([
+            {
+                $match: {
+                    product_id: new mongoose.Types.ObjectId(productId),
+                    is_verified: true
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$rating" },
+                    totalReviews: { $sum: 1 }
+                }
             }
+        ]);
+
+        const newRating = avgRating[0]?.averageRating || 0;
+
+        // Cập nhật rating trong shoes model
+        await Shoes.findByIdAndUpdate(productId, {
+            rating: Number(newRating.toFixed(1)) // Làm tròn 1 chữ số thập phân
         });
-    });
+
+        return newRating;
+    } catch (error) {
+        console.error('Error updating average rating:', error);
+        throw error;
+    }
 };
 
 module.exports = {
@@ -53,13 +90,16 @@ module.exports = {
                 });
             }
 
-            // Xử lý media files
             let mediaFiles = [];
             if (req.files && req.files.length > 0) {
-                mediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'reviews');
+                    mediaFiles.push({
+                        type: result.resource_type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             const newReview = new Review({
@@ -73,6 +113,9 @@ module.exports = {
 
             await newReview.save();
 
+            // Cập nhật rating trung bình
+            const averageRating = await updateAverageRating(product_id);
+
             // Populate thông tin user và product
             const populatedReview = await Review.findById(newReview._id)
                 .populate('user_id', 'username avatar')
@@ -82,7 +125,10 @@ module.exports = {
             res.status(200).json({
                 status: 200,
                 message: "Thêm đánh giá thành công",
-                data: populatedReview
+                data: {
+                    review: populatedReview,
+                    averageRating
+                }
             });
 
         } catch (error) {
@@ -211,22 +257,40 @@ module.exports = {
             }
 
             // Xử lý media mới nếu có
-            if (req.files && req.files.length > 0) {
-                // Xóa files cũ
-                for (const media of review.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
-                }
+            // if (req.files && req.files.length > 0) {
+            //     // Xóa files cũ
+            //     for (const media of review.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
 
-                review.media = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-                }));
+            //     review.media = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
+            //     }));
+            // }
+
+            // review.rating = rating;
+            // review.comment = comment;
+            // await review.save();
+
+            // ✅ Upload media mới lên Cloudinary
+            let mediaFiles = [];
+            if (req.files && req.files.length > 0) {
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'reviews');
+                    mediaFiles.push({
+                        type: result.type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             review.rating = rating;
             review.comment = comment;
+            review.media = mediaFiles;
             await review.save();
 
             res.status(200).json({
@@ -289,11 +353,18 @@ module.exports = {
             }
 
             // Xóa media files
-            if (review.media && review.media.length > 0) {
-                for (const media of review.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+            // if (review.media && review.media.length > 0) {
+            //     for (const media of review.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+            // }
+
+            // ✅ Xoá media khỏi Cloudinary
+            for (const media of review.media) {
+                if (media.public_id) {
+                    await deleteFromCloudinary(media.public_id, media.type);
                 }
             }
 

@@ -27,6 +27,9 @@ const returnRequestController = require('../controllers/return_request.controlle
 const messagesController = require('../controllers/message.controller');
 const momo = require('../controllers/momo.controller');
 const statisticsController = require('../controllers/statistics.controller');
+const aiController = require('../controllers/aiSuggest.controller');
+const aiController2 = require('../controllers/ai_suggest_openrouter.controller');
+const cancelRequestController = require('../controllers/cancel_request.controller');
 
 // đăng kí , đăng nhập
 router.post('/users/login', userController.login);
@@ -74,6 +77,7 @@ router.put('/brand/toggle-active/:id', mdw.api_auth, brand.toggleActive);
 
 // API quản lý sản phẩm
 router.get('/shoes/filter-by-brand-category', shoesController.getShoesByBrandAndCategory); // Di chuyển lên trên
+router.get('/shoes/getShoesByBrand', shoesController.getShoesByBrand);
 router.get('/shoes/top-selling', shoesController.getTopSellingProducts);
 router.get('/shoes/list', shoesController.getAllShoes);
 router.get('/shoes/list-web', shoesController.getAllShoesWeb);
@@ -151,6 +155,10 @@ router.get('/user-vouchers/:user_id', mdw.api_auth, userVouchersController.getUs
 router.post('/user-vouchers/use', mdw.api_auth, userVouchersController.useVoucher);
 router.delete('/user-vouchers/voucher/:voucher_id', mdw.api_auth, userVouchersController.removeAllUserVouchers);
 
+// Thêm 2 routes mới cho user vouchers
+router.get('/user-vouchers/shipping/:user_id', mdw.api_auth, userVouchersController.getUserShippingVouchers);
+router.get('/user-vouchers/order/:user_id', mdw.api_auth, userVouchersController.getUserOrderVouchers);
+
 // API quản lý thông báo
 router.post('/notifications/add', mdw.api_auth, notificationsController.createNotification);
 router.get('/notifications/list', notificationsController.getAllNotifications);
@@ -190,6 +198,8 @@ router.get('/payment-history/search', mdw.api_auth, paymentHistoryController.sea
 // Thanh toán ví Momo
 router.post('/momo/create', mdw.api_auth, momo.createPayment);
 router.post('/momo/callback', momo.handleCallback);
+// API Momo payment
+router.post('/momo/refund', mdw.api_auth, momo.refundPayment);
 
 // API quản lý đánh giá
 router.get('/reviews/product/:product_id', reviewsController.getProductReviews);
@@ -199,12 +209,10 @@ router.put('/reviews/verify/:id', mdw.api_auth, reviewsController.verifyReview);
 router.delete('/reviews/:id', mdw.api_auth, reviewsController.deleteReview);
 
 // API quản lý trả hàng
-router.post('/return-requests/add', mdw.api_auth, upload.array('images', 5), returnRequestController.createReturnRequest);
-router.get('/return-requests/list', mdw.api_auth, returnRequestController.getAllReturnRequests);
+router.post('/return-requests/create', mdw.api_auth, upload.array('images', 5), returnRequestController.createReturnRequest);
 router.get('/return-requests/:id', mdw.api_auth, returnRequestController.getReturnRequestById);
-router.get('/return-requests/user/:user_id', mdw.api_auth, returnRequestController.getUserReturnRequests);
 router.put('/return-requests/status/:id', mdw.api_auth, returnRequestController.updateReturnRequestStatus);
-router.delete('/return-requests/:id', mdw.api_auth, returnRequestController.deleteReturnRequest);
+router.delete('/return-requests/delete/:id', mdw.api_auth, returnRequestController.deleteReturnRequest);
 
 // API quản lý tin nhắn
 router.post('/messages/send', mdw.api_auth, messagesController.sendMessage);
@@ -224,5 +232,25 @@ router.put('/notifications/user/mark-all-read', mdw.api_auth, notificationUsersC
 
 // Sửa route cho đánh dấu đã đọc thông báo
 router.put('/notifications/read/:notification_id', mdw.api_auth, notificationUsersController.markAsRead);
+
+// Lấy danh mục theo brand
+router.get('/category/by-brand/:brand_id', categoryController.getCategoriesByBrand);
+
+
+// AI tích hợp
+router.post('/suggest', mdw.api_auth, aiController.suggestProducts);
+router.get('/chats/:user_id', mdw.api_auth, aiController.getChatHistory);
+router.delete('/chats/:chat_id', mdw.api_auth, aiController.deleteChat);
+router.delete('/chats/user/:user_id', mdw.api_auth, aiController.deleteAllChats);
+
+router.post('/suggest2', mdw.api_auth, aiController2.suggestProducts);
+
+// API quản lý hủy đơn
+router.post('/cancel-requests/add', mdw.api_auth, upload.array('images', 5), cancelRequestController.createCancelRequest);
+router.get('/cancel-requests/list', mdw.api_auth, cancelRequestController.getAllCancelRequests);
+router.get('/cancel-requests/:id', mdw.api_auth, cancelRequestController.getCancelRequestByOrderId);
+router.get('/cancel-requests/user/:user_id', mdw.api_auth, cancelRequestController.getUserCancelRequests);
+router.put('/cancel-requests/status/:id', mdw.api_auth, cancelRequestController.updateCancelRequestStatus);
+router.delete('/cancel-requests/:id', mdw.api_auth, cancelRequestController.deleteCancelRequest);
 
 module.exports = router;

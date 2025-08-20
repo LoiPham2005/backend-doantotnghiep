@@ -5,7 +5,7 @@ module.exports = {
     // Thêm variant mới 
     addVariant: async (req, res) => {
         try {
-            const { shoes_id, price, quantity_in_stock, size_id, color_id, status } = req.body; // Thêm status
+            const { shoes_id, price, quantity_in_stock, size_id, color_id } = req.body;
 
             // Kiểm tra sản phẩm tồn tại
             const shoe = await Shoes.findById(shoes_id);
@@ -30,17 +30,28 @@ module.exports = {
                 });
             }
 
+            // Tự động xác định status dựa vào quantity_in_stock
+            const status = quantity_in_stock > 0 ? 'available' : 'out_of_stock';
+
             const newVariant = new ShoesVariant({
                 shoes_id,
                 price,
                 quantity_in_stock,
                 size_id,
                 color_id,
-                status: status || 'available' // Thêm status với giá trị mặc định
+                status
             });
 
             const savedVariant = await newVariant.save();
-            
+
+            // Cập nhật status của shoes sau khi thêm variant
+            const allVariants = await ShoesVariant.find({ shoes_id });
+            const hasAvailableVariants = allVariants.some(v => v.quantity_in_stock > 0);
+
+            await Shoes.findByIdAndUpdate(shoes_id, {
+                status: hasAvailableVariants ? 'active' : 'out_of_stock'
+            });
+
             const populatedVariant = await ShoesVariant.findById(savedVariant._id)
                 .populate('size_id')
                 .populate('color_id')
@@ -116,14 +127,19 @@ module.exports = {
     // Cập nhật variant
     updateVariant: async (req, res) => {
         try {
-            const { price, quantity_in_stock, status } = req.body; // Thêm status
+            const { price, quantity_in_stock, color_id, size_id } = req.body;
+
+            // Tự động xác định status dựa vào quantity_in_stock
+            const status = quantity_in_stock > 0 ? 'available' : 'out_of_stock';
 
             const updatedVariant = await ShoesVariant.findByIdAndUpdate(
                 req.params.id,
-                { 
-                    price, 
+                {
+                    price,
                     quantity_in_stock,
-                    status // Thêm status vào update
+                    status, // Tự động cập nhật status
+                    color_id,
+                    size_id
                 },
                 { new: true }
             )
@@ -137,6 +153,18 @@ module.exports = {
                     message: "Không tìm thấy variant"
                 });
             }
+
+            // Cập nhật status của shoes sau khi cập nhật variant
+            const allVariants = await ShoesVariant.find({ shoes_id: updatedVariant.shoes_id });
+
+            // Kiểm tra tất cả variants của shoes
+            const hasAvailableVariants = allVariants.some(v => v.quantity_in_stock > 0);
+
+            // Cập nhật status của shoes
+            const shoesStatus = hasAvailableVariants ? 'active' : 'out_of_stock';
+            await Shoes.findByIdAndUpdate(updatedVariant.shoes_id, {
+                status: shoesStatus
+            });
 
             res.status(200).json({
                 status: 200,

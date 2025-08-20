@@ -1,11 +1,8 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-const bannerSchema = new Schema({
-    media: {
-        type: String,
-        required: true,
-    },
+const bannerSchema = new mongoose.Schema({
+    media: { type: String, required: true },
+    cloudinary_id: { type: String, required: true }
 }, {
     timestamps: true
 });

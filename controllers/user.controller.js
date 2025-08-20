@@ -5,7 +5,8 @@ const bcrypt = require('bcrypt');
 const User = require('../models/user.model');
 const path = require('path');
 const fs = require('fs');
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // tạo toekn mới
 const generateAuthToken = (userId) => {
@@ -40,51 +41,6 @@ module.exports = {
             });
         }
     },
-
-    // register: async (req, res) => {
-    //     try {
-    //         ///Tạo salt ngẫu nhiên để mã hóa mật khẩu
-    //         const salt = await bcrypt.genSalt(10);
-
-    //         // Tạo user mới
-    //         const user = new md({
-    //             username: req.body.username,
-    //             email: req.body.email,
-    //             password: req.body.password,
-    //         });
-
-    //         //Mã hóa mật khẩu với salt
-    //         user.password = await bcrypt.hash(user.password, salt);
-
-    //         // Tạo token xác thực cho user mới bằng hàm generateAuthToken
-    //         // user.accessToken = generateAuthToken(user._id);
-
-    //         const { accessToken, refreshToken } = generateAuthToken(user._id);
-    //         user.accessToken = accessToken;
-    //         user.refreshToken = refreshToken;
-
-    //         // Lưu user vào database      
-    //         const newUser = await user.save();
-    //         // res.status(200).json({ newUser });
-    //         // res.status(200).json({
-    //         //     user: newUser,
-    //         //     accessToken,
-    //         //     refreshToken
-    //         // });
-
-    //         res.json({
-    //             status: 200,
-    //             message: 'Đăng ký thành công',
-    //             user: newUser,
-    //             accessToken,
-    //             refreshToken
-    //         });
-
-    //     } catch (error) {
-    //         console.error(error);
-    //         res.status(400).json({ message: 'Registration failed' });
-    //     }
-    // },
 
     register: async (req, res) => {
         try {
@@ -134,69 +90,6 @@ module.exports = {
             res.status(400).json({ message: 'Registration failed' });
         }
     },
-
-
-    // đăng nhập
-    // login: async (req, res) => {
-    //     try {
-    //         const { email, password, role } = req.body;
-
-    //         const user = await md.findOne({ email });
-    //         if (!user) {
-    //             return res.status(400).json({
-    //                 status: 400,
-    //                 message: 'Email không tồn tại'
-    //             });
-    //         }
-
-    //         const isMatch = await bcrypt.compare(password, user.password);
-    //         if (!isMatch) {
-    //             return res.status(400).json({
-    //                 status: 400,
-    //                 message: 'Mật khẩu không đúng'
-    //             });
-    //         }
-
-    //         // Chỉ kiểm tra role admin
-    //         if (user.role !== 'admin') {
-    //             return res.status(403).json({
-    //                 status: 403,
-    //                 message: 'Chỉ tài khoản Admin mới có thể đăng nhập vào trang quản trị'
-    //             });
-    //         }
-
-    //         const { accessToken, refreshToken } = generateAuthToken(user._id);
-    //         user.accessToken = accessToken;
-    //         user.refreshToken = refreshToken;
-
-    //         await user.save();
-
-    //         res.json({
-    //             status: 200,
-    //             message: 'Đăng nhập thành công',
-    //             user: {
-    //                 _id: user._id,
-    //                 username: user.username,
-    //                 email: user.email,
-    //                 role: user.role,
-    //                 avatar: user.avatar,
-    //                 sex: user.sex,
-    //                 phone: user.phone,
-    //                 birth_date: user.birth_date
-    //             },
-    //             accessToken,
-    //             refreshToken
-    //         });
-
-    //     } catch (error) {
-    //         console.error('Login error:', error);
-    //         res.status(500).json({
-    //             status: 500,
-    //             message: 'Lỗi server',
-    //             error: error.message
-    //         });
-    //     }
-    // },
 
     login: async (req, res) => {
         try {
@@ -253,6 +146,7 @@ module.exports = {
                 user: {
                     _id: user._id,
                     username: user.username,
+                    fullname: user.fullname,
                     email: user.email,
                     role: user.role,
                     avatar: user.avatar,
@@ -343,6 +237,7 @@ module.exports = {
             // Validate dữ liệu đầu vào
             const updateData = {
                 username: req.body.username,
+                fullname: req.body.fullname,
                 phone: req.body.phone,
                 sex: req.body.sex,
                 birthDate: req.body.birthDate
@@ -364,24 +259,43 @@ module.exports = {
             }
 
             // Xử lý upload avatar
+            // if (req.file) {
+            //     // Lấy user cũ để xóa avatar cũ nếu có
+            //     const oldUser = await User.findById(userId);
+            //     if (oldUser && oldUser.avatar) {
+            //         const oldAvatarFileName = oldUser.avatar.split('/').pop();
+            //         const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
+            //         try {
+            //             await deleteFile(oldAvatarPath);
+            //         } catch (err) {
+            //             console.error('Error deleting old avatar:', err);
+            //         }
+            //     }
+
+            //     // Tạo URL cho avatar mới
+            //     updateData.avatar = createFileUrl(req, req.file.filename);
+            // } else if (req.body.avatar) {
+            //     // Nếu chỉ gửi URL avatar
+            //     updateData.avatar = req.body.avatar;
+            // }
+
             if (req.file) {
-                // Lấy user cũ để xóa avatar cũ nếu có
-                const oldUser = await User.findById(userId);
-                if (oldUser && oldUser.avatar) {
-                    const oldAvatarFileName = oldUser.avatar.split('/').pop();
-                    const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
-                    try {
-                        await deleteFile(oldAvatarPath);
-                    } catch (err) {
-                        console.error('Error deleting old avatar:', err);
-                    }
+                const user = await User.findById(userId);
+                if (!user) {
+                    return res.status(404).json({ status: 404, message: "Không tìm thấy người dùng" });
                 }
 
-                // Tạo URL cho avatar mới
-                updateData.avatar = createFileUrl(req, req.file.filename);
+                // ✅ Xoá avatar cũ nếu có
+                if (user.avatar && user.avatar.includes('res.cloudinary.com')) {
+                    const publicId = user.avatar.split('/').pop().split('.')[0]; // hoặc lưu public_id riêng trong DB
+                    await deleteFromCloudinary(`avatars/${publicId}`, 'image');
+                }
+
+                // ✅ Upload ảnh mới lên Cloudinary
+                const result = await uploadToCloudinary(req.file.path, 'avatars');
+                updateData.avatar = result.secure_url;
             } else if (req.body.avatar) {
-                // Nếu chỉ gửi URL avatar
-                updateData.avatar = req.body.avatar;
+                updateData.avatar = req.body.avatar; // URL thủ công
             }
 
             // Loại bỏ các trường undefined/null
@@ -413,6 +327,7 @@ module.exports = {
                 data: {
                     _id: result._id,
                     username: result.username,
+                    fullname: result.fullname,
                     email: result.email,
                     phone: result.phone,
                     sex: result.sex,
@@ -425,12 +340,14 @@ module.exports = {
         } catch (error) {
             // Xóa file mới nếu có lỗi
             if (req.file) {
-                const filePath = path.join('public', 'uploads', req.file.filename);
-                try {
-                    await deleteFile(filePath);
-                } catch (err) {
-                    console.error('Error deleting file after error:', err);
-                }
+                // const filePath = path.join('public', 'uploads', req.file.filename);
+                // try {
+                //     await deleteFile(filePath);
+                // } catch (err) {
+                //     console.error('Error deleting file after error:', err);
+                // }
+
+                await deleteFile(req.file.path);
             }
 
             console.error("Error updating user:", error);

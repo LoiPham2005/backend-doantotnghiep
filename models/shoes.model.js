@@ -15,7 +15,8 @@ const ShoeSchema = new mongoose.Schema({
         url: {
             type: String,
             required: false
-        }
+        },
+        public_id: String 
     }],
     name: {
         type: String,
@@ -31,9 +32,19 @@ const ShoeSchema = new mongoose.Schema({
         ref: 'Brand',
         required: true
     },
+    // brand: {
+    //     type: String,
+    //     required: false
+    // },
+    rating: { 
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5
+    },
     status: {
         type: String,
-        enum: ['active', 'out of stock', 'importing goods', 'hidden'],
+        enum: ['active', 'out_of_stock', 'importing_goods', 'hidden'],
         default: 'active'
     },
     category_id: {

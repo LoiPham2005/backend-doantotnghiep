@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const Users = new Schema({
-    avatar: { type: String, required: false },
+    avatar: { type: String, public_id: String },
+    fullname: { type: String, unique: true },
     username: { type: String, unique: true, required: true },
     email: { type: String, required: true },
     password: { type: String, required: true },
@@ -20,7 +21,7 @@ const Users = new Schema({
     },
     is_active: {
         type: Boolean,
-        default: true // Mặc định tài khoản được kích hoạt
+        default: true 
     }
 }, {
     timestamps: true,

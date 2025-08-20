@@ -3,9 +3,11 @@ const router = express.Router();
 const Shoes = require('../models/shoes.model');
 const ShoesVariant = require('../models/shoes_variant.model');
 const path = require('path'); // Thêm import path
-const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 const Brand = require('../models/brand.model'); // Import model Brand
 const Category = require('../models/category.model'); // Import model Category
+const Size = require('../models/sizes.model'); // Import model Category
+// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
+const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
 // Helper function để kiểm tra role 
 const isAdmin = (req) => req.user?.role === 'admin';
@@ -14,15 +16,29 @@ module.exports = {
     // Thêm sản phẩm mới
     addShoes: async (req, res) => {
         try {
+
             const { name, description, brand_id, category_id, variants } = req.body;
 
-            // Xử lý media files
+            // // Xử lý media files
+            // let mediaFiles = [];
+            // if (req.files && req.files.length > 0) {
+            //     mediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: createFileUrl(req, file.filename)  // Thêm req vào đây
+            //     }));
+            // }
+
             let mediaFiles = [];
+
             if (req.files && req.files.length > 0) {
-                mediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: createFileUrl(req, file.filename)  // Thêm req vào đây
-                }));
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'shoes');
+                    mediaFiles.push({
+                        type: result.resource_type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             // Tạo sản phẩm mới
@@ -302,30 +318,54 @@ module.exports = {
             oldShoe.status = status;
 
             // Xử lý media
-            let mediaFiles = [...existingMedia]; // Giữ lại các media đã chọn
+            // let mediaFiles = [...existingMedia]; // Giữ lại các media đã chọn
 
-            // Xóa các file cũ không còn được sử dụng
-            if (oldShoe.media) {
-                for (const oldMedia of oldShoe.media) {
-                    if (!existingMedia.some(media => media.url === oldMedia.url)) {
-                        const filename = oldMedia.url.split('/').pop();
-                        const filePath = path.join('public', 'uploads', filename);
-                        try {
-                            await deleteFile(filePath);
-                        } catch (err) {
-                            console.error('Error deleting old file:', err);
-                        }
+            // // Xóa các file cũ không còn được sử dụng
+            // if (oldShoe.media) {
+            //     for (const oldMedia of oldShoe.media) {
+            //         if (!existingMedia.some(media => media.url === oldMedia.url)) {
+            //             const filename = oldMedia.url.split('/').pop();
+            //             const filePath = path.join('public', 'uploads', filename);
+            //             try {
+            //                 await deleteFile(filePath);
+            //             } catch (err) {
+            //                 console.error('Error deleting old file:', err);
+            //             }
+            //         }
+            //     }
+            // }
+
+            // // Thêm files mới
+            // if (req.files && req.files.length > 0) {
+            //     const newMediaFiles = req.files.map(file => ({
+            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+            //         url: createFileUrl(req, file.filename)
+            //     }));
+            //     mediaFiles = [...mediaFiles, ...newMediaFiles];
+            // }
+
+            // ✅ Giữ lại media còn dùng
+            let mediaFiles = existingMedia;
+
+            // ✅ Xoá media không dùng nữa trên Cloudinary
+            for (const oldMedia of oldShoe.media) {
+                if (!existingMedia.some(media => media.url === oldMedia.url)) {
+                    if (oldMedia.public_id) {
+                        await deleteFromCloudinary(oldMedia.public_id, oldMedia.type);
                     }
                 }
             }
 
-            // Thêm files mới
+            // ✅ Thêm media mới
             if (req.files && req.files.length > 0) {
-                const newMediaFiles = req.files.map(file => ({
-                    type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-                    url: createFileUrl(req, file.filename)
-                }));
-                mediaFiles = [...mediaFiles, ...newMediaFiles];
+                for (const file of req.files) {
+                    const result = await uploadToCloudinary(file.path, 'shoes');
+                    mediaFiles.push({
+                        type: result.resource_type,
+                        url: result.url,
+                        public_id: result.public_id
+                    });
+                }
             }
 
             // Cập nhật mảng media
@@ -371,11 +411,18 @@ module.exports = {
             }
 
             // Xóa files
-            if (shoe.media && shoe.media.length > 0) {
-                for (const media of shoe.media) {
-                    const filename = media.url.split('/').pop();
-                    const filePath = path.join('public', 'uploads', filename);
-                    await deleteFile(filePath);
+            // if (shoe.media && shoe.media.length > 0) {
+            //     for (const media of shoe.media) {
+            //         const filename = media.url.split('/').pop();
+            //         const filePath = path.join('public', 'uploads', filename);
+            //         await deleteFile(filePath);
+            //     }
+            // }
+
+            // ✅ Xoá media trên Cloudinary
+            for (const media of shoe.media) {
+                if (media.public_id) {
+                    await deleteFromCloudinary(media.public_id, media.type);
                 }
             }
 
@@ -399,12 +446,14 @@ module.exports = {
     },
 
     // Lọc sản phẩm
+    // 
+
     filterShoes: async (req, res) => {
         try {
             const {
                 category_id,
                 brand_id,
-                size_id,
+                size_value, // ✅ đổi từ size_id sang size_value
                 min_price,
                 max_price,
                 sort_by,
@@ -412,36 +461,46 @@ module.exports = {
                 limit = 10
             } = req.query;
 
-            // Build query
-            // let query = {};
-            // Thêm điều kiện status khác hidden
+            // Build base query
             const query = { status: { $ne: 'hidden' } };
 
-            // Filter by category
-            if (category_id) {
-                query.category_id = category_id;
-            }
+            if (category_id) query.category_id = category_id;
+            if (brand_id) query.brand_id = brand_id;
 
-            // Filter by brand  
-            if (brand_id) {
-                query.brand_id = brand_id;
-            }
-
-            // Get base shoes query
+            // Tìm tất cả sản phẩm thỏa query
             let shoes = await Shoes.find(query)
                 .populate('brand_id')
                 .populate('category_id');
 
-            // Get variants for all shoes
+            // Nếu có truyền size_value, tìm size_id tương ứng
+            let sizeIdFilter = null;
+            if (size_value) {
+                const size = await Size.findOne({ size_value: size_value });
+                if (size) {
+                    sizeIdFilter = size._id;
+                } else {
+                    // Không tìm thấy size -> trả rỗng luôn
+                    return res.status(200).json({
+                        status: 200,
+                        message: "Không có sản phẩm phù hợp với size.",
+                        data: {
+                            currentPage: parseInt(page),
+                            totalPages: 0,
+                            totalItems: 0,
+                            limit: parseInt(limit),
+                            shoes: []
+                        }
+                    });
+                }
+            }
+
             const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
                 let variantQuery = { shoes_id: shoe._id };
 
-                // Filter by size
-                if (size_id) {
-                    variantQuery.size_id = size_id;
+                if (sizeIdFilter) {
+                    variantQuery.size_id = sizeIdFilter;
                 }
 
-                // Filter by price range
                 if (min_price || max_price) {
                     variantQuery.price = {};
                     if (min_price) variantQuery.price.$gte = parseFloat(min_price);
@@ -458,10 +517,10 @@ module.exports = {
                 };
             }));
 
-            // Filter out shoes with no matching variants
+            // Lọc các sản phẩm có ít nhất 1 variant
             let filteredShoes = shoesWithVariants.filter(shoe => shoe.variants.length > 0);
 
-            // Sort processing
+            // Sorting
             if (sort_by) {
                 switch (sort_by) {
                     case 'price_asc':
@@ -502,12 +561,6 @@ module.exports = {
                     totalItems,
                     limit: parseInt(limit),
                     shoes: filteredShoes,
-                    // pagination: {
-                    //     currentPage: parseInt(page),
-                    //     totalPages,
-                    //     totalItems,
-                    //     limit: parseInt(limit)
-                    // }
                 }
             });
 
@@ -520,6 +573,7 @@ module.exports = {
             });
         }
     },
+
 
     // Lấy sản phẩm bán chạy
     getTopSellingProducts: async (req, res) => {
@@ -628,12 +682,41 @@ module.exports = {
                 .limit(limit);
 
             // Get variants for each shoe
+            // const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
+            //     const variants = await ShoesVariant.find({ shoes_id: shoe._id })
+            //         .populate('size_id')
+            //         .populate('color_id');
+            //     return {
+            //         ...shoe._doc,
+            //         variants
+            //     };
+            // }));
+
+
+            // Get variants for each shoe and calculate min/max prices
             const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
                 const variants = await ShoesVariant.find({ shoes_id: shoe._id })
                     .populate('size_id')
                     .populate('color_id');
+
+                // Calculate min and max prices from variants
+                const prices = variants.map(v => v.price);
+                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
                 return {
-                    ...shoe._doc,
+                    _id: shoe._id,
+                    media: shoe.media,
+                    name: shoe.name,
+                    description: shoe.description,
+                    brand_id: shoe.brand_id,
+                    status: shoe.status,
+                    category_id: shoe.category_id,
+                    created_at: shoe.created_at,
+                    update_at: shoe.update_at,
+                    __v: shoe.__v,
+                    minPrice,
+                    maxPrice,
                     variants
                 };
             }));
@@ -653,6 +736,78 @@ module.exports = {
                     //     totalItems: totalShoes,
                     //     itemsPerPage: limit
                     // }
+                }
+            });
+
+        } catch (error) {
+            console.error("Error getting shoes by brand and category:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách sản phẩm",
+                error: error.message
+            });
+        }
+    },
+
+    getShoesByBrand: async (req, res) => {
+        try {
+            const { brand_id } = req.query;
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
+            // Build query
+            let query = {};
+            if (brand_id) {
+                query.brand_id = brand_id;
+            }
+
+            // Get total count for pagination
+            const totalShoes = await Shoes.countDocuments(query);
+
+            // Get shoes with pagination
+            const shoes = await Shoes.find(query)
+                .populate('brand_id')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            // Get variants for each shoe and calculate min/max prices
+            const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
+                const variants = await ShoesVariant.find({ shoes_id: shoe._id })
+                    .populate('color_id');
+
+                // Calculate min and max prices from variants
+                const prices = variants.map(v => v.price);
+                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
+                return {
+                    _id: shoe._id,
+                    media: shoe.media,
+                    name: shoe.name,
+                    description: shoe.description,
+                    brand: shoe.brand_id,
+                    status: shoe.status,
+                    category: shoe.category_id,
+                    created_at: shoe.created_at,
+                    update_at: shoe.update_at,
+                    __v: shoe.__v,
+                    minPrice,
+                    maxPrice,
+                    variants
+                };
+            }));
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách sản phẩm theo thương hiệu",
+                data: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalShoes / limit),
+                    totalItems: totalShoes,
+                    itemsPerPage: limit,
+                    shoes: shoesWithVariants,
                 }
             });
 
@@ -811,14 +966,14 @@ module.exports = {
 
             // Build query tìm kiếm
             let query = {};
-            
+
             if (keyword) {
                 // Tìm brand và category có tên chứa keyword
-                const brands = await Brand.find({ 
-                    name: { $regex: keyword, $options: 'i' } 
+                const brands = await Brand.find({
+                    name: { $regex: keyword, $options: 'i' }
                 });
-                const categories = await Category.find({ 
-                    name: { $regex: keyword, $options: 'i' } 
+                const categories = await Category.find({
+                    name: { $regex: keyword, $options: 'i' }
                 });
 
                 const brandIds = brands.map(brand => brand._id);
