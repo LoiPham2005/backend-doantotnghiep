@@ -749,6 +749,78 @@ module.exports = {
         }
     },
 
+    getShoesByBrand: async (req, res) => {
+        try {
+            const { brand_id } = req.query;
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
+            // Build query
+            let query = {};
+            if (brand_id) {
+                query.brand_id = brand_id;
+            }
+
+            // Get total count for pagination
+            const totalShoes = await Shoes.countDocuments(query);
+
+            // Get shoes with pagination
+            const shoes = await Shoes.find(query)
+                .populate('brand_id')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            // Get variants for each shoe and calculate min/max prices
+            const shoesWithVariants = await Promise.all(shoes.map(async (shoe) => {
+                const variants = await ShoesVariant.find({ shoes_id: shoe._id })
+                    .populate('color_id');
+
+                // Calculate min and max prices from variants
+                const prices = variants.map(v => v.price);
+                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
+                return {
+                    _id: shoe._id,
+                    media: shoe.media,
+                    name: shoe.name,
+                    description: shoe.description,
+                    brand: shoe.brand_id,
+                    status: shoe.status,
+                    category: shoe.category_id,
+                    created_at: shoe.created_at,
+                    update_at: shoe.update_at,
+                    __v: shoe.__v,
+                    minPrice,
+                    maxPrice,
+                    variants
+                };
+            }));
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách sản phẩm theo thương hiệu",
+                data: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalShoes / limit),
+                    totalItems: totalShoes,
+                    itemsPerPage: limit,
+                    shoes: shoesWithVariants,
+                }
+            });
+
+        } catch (error) {
+            console.error("Error getting shoes by brand and category:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách sản phẩm",
+                error: error.message
+            });
+        }
+    },
+
     // Lấy sản phẩm tương tự
     getSimilarProducts: async (req, res) => {
         try {

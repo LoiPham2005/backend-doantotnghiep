@@ -1,93 +1,44 @@
 const ReturnRequest = require('../models/return_request.model');
-const OrderDetail = require('../models/order_details.model');
 const Order = require('../models/orders.model');
-const fs = require('fs');
-const path = require('path');
-// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
-const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
-
-// Helper function to delete file
-// const deleteFile = (filePath) => {
-//     return new Promise((resolve, reject) => {
-//         fs.unlink(filePath, (err) => {
-//             if (err) {
-//                 console.error(`Error deleting file ${filePath}:`, err);
-//                 reject(err);
-//             } else {
-//                 resolve();
-//             }
-//         });
-//     });
-// };
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/fileUtils');
 
 module.exports = {
     // Tạo yêu cầu trả hàng
     createReturnRequest: async (req, res) => {
         try {
-            const {
-                order_detail_id,
-                user_id,
-                reason,
-                quality
-            } = req.body;
+            const { order_id, user_id, reason, quality } = req.body;
 
-            // Kiểm tra order detail tồn tại
-            const orderDetail = await OrderDetail.findById(order_detail_id)
-                .populate('order_id');
-
-            if (!orderDetail) {
+            // Kiểm tra đơn hàng tồn tại
+            const order = await Order.findById(order_id);
+            if (!order) {
                 return res.status(404).json({
                     status: 404,
-                    message: "Không tìm thấy chi tiết đơn hàng"
+                    message: "Không tìm thấy đơn hàng"
                 });
             }
 
             // Kiểm tra trạng thái đơn hàng
-            if (orderDetail.order_id.status !== 'delivered') {
+            if (order.status !== 'delivered') {
                 return res.status(400).json({
                     status: 400,
                     message: "Chỉ có thể trả hàng với đơn hàng đã giao"
                 });
             }
 
-            // Kiểm tra số lượng trả
-            if (quality > orderDetail.quantity) {
-                return res.status(400).json({
-                    status: 400,
-                    message: "Số lượng trả hàng không thể lớn hơn số lượng đã mua"
-                });
-            }
-
             // Kiểm tra đã có yêu cầu trả hàng chưa
             const existingRequest = await ReturnRequest.findOne({
-                order_detail_id,
+                order_id,
                 status: { $nin: ['rejected'] }
             });
 
             if (existingRequest) {
                 return res.status(400).json({
                     status: 400,
-                    message: "Đã tồn tại yêu cầu trả hàng cho sản phẩm này"
+                    message: "Đã tồn tại yêu cầu trả hàng cho đơn hàng này"
                 });
             }
 
-            // Xử lý hình ảnh
-            // let imageUrls = [];
-            // if (req.files && req.files.length > 0) {
-            //     imageUrls = req.files.map(file => 
-            //         `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-            //     );
-            // }
-
-            // const returnRequest = new ReturnRequest({
-            //     order_detail_id,
-            //     user_id,
-            //     reason,
-            //     quality,
-            //     images: imageUrls
-            // });
-
-            // ✅ Upload ảnh lên Cloudinary
+            // Upload ảnh lên Cloudinary
             let uploadedImages = [];
             if (req.files && req.files.length > 0) {
                 for (const file of req.files) {
@@ -100,7 +51,7 @@ module.exports = {
             }
 
             const returnRequest = new ReturnRequest({
-                order_detail_id,
+                order_id,
                 user_id,
                 reason,
                 quality,
@@ -116,13 +67,7 @@ module.exports = {
             });
 
         } catch (error) {
-            // Xóa files nếu có lỗi
-            if (req.files) {
-                for (const file of req.files) {
-                    await deleteFile(file.path);
-                }
-            }
-            console.error("❌ Lỗi khi tạo yêu cầu trả hàng:", error);
+            console.error('Error creating return request:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi tạo yêu cầu trả hàng",
@@ -131,57 +76,16 @@ module.exports = {
         }
     },
 
-    // Lấy danh sách yêu cầu trả hàng (admin)
-    getAllReturnRequests: async (req, res) => {
-        try {
-            const { status, page = 1, limit = 10 } = req.query;
-            const query = {};
-
-            if (status) {
-                query.status = status;
-            }
-
-            const returnRequests = await ReturnRequest.find(query)
-                .populate({
-                    path: 'order_detail_id',
-                    populate: {
-                        path: 'shoes_id'
-                    }
-                })
-                .populate('user_id', 'username email')
-                .sort({ createdAt: -1 })
-                .skip((page - 1) * limit)
-                .limit(limit);
-
-            const total = await ReturnRequest.countDocuments(query);
-
-            res.status(200).json({
-                status: 200,
-                message: "Danh sách yêu cầu trả hàng",
-                data: {
-                    returnRequests,
-                    total,
-                    currentPage: parseInt(page),
-                    totalPages: Math.ceil(total / limit)
-                }
-            });
-        } catch (error) {
-            res.status(500).json({
-                status: 500,
-                message: "Lỗi khi lấy danh sách yêu cầu trả hàng",
-                error: error.message
-            });
-        }
-    },
-
     // Lấy chi tiết yêu cầu trả hàng
     getReturnRequestById: async (req, res) => {
         try {
-            const returnRequest = await ReturnRequest.findById(req.params.id)
+            // Tìm kiếm theo order_id thay vì _id
+            const returnRequest = await ReturnRequest.findOne({ order_id: req.params.id })
                 .populate({
-                    path: 'order_detail_id',
+                    path: 'order_id',
                     populate: {
-                        path: 'shoes_id'
+                        path: 'user_id',
+                        select: 'username email'
                     }
                 })
                 .populate('user_id', 'username email');
@@ -189,16 +93,35 @@ module.exports = {
             if (!returnRequest) {
                 return res.status(404).json({
                     status: 404,
-                    message: "Không tìm thấy yêu cầu trả hàng"
+                    message: "Không tìm thấy yêu cầu trả hàng cho đơn hàng này"
                 });
             }
+
+            // Format lại dữ liệu trả về
+            const formattedResponse = {
+                _id: returnRequest._id,
+                order_id: returnRequest.order_id._id,
+                user: {
+                    _id: returnRequest.user_id._id,
+                    username: returnRequest.user_id.username,
+                    email: returnRequest.user_id.email
+                },
+                reason: returnRequest.reason,
+                quality: returnRequest.quality,
+                status: returnRequest.status,
+                images: returnRequest.images,
+                createdAt: returnRequest.createdAt,
+                updatedAt: returnRequest.updatedAt
+            };
 
             res.status(200).json({
                 status: 200,
                 message: "Chi tiết yêu cầu trả hàng",
-                data: returnRequest
+                data: formattedResponse
             });
+
         } catch (error) {
+            console.error('Error getting return request:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy chi tiết yêu cầu trả hàng",
@@ -207,40 +130,12 @@ module.exports = {
         }
     },
 
-    // Lấy yêu cầu trả hàng của user
-    getUserReturnRequests: async (req, res) => {
-        try {
-            const { user_id } = req.params;
-            const returnRequests = await ReturnRequest.find({ user_id })
-                .populate({
-                    path: 'order_detail_id',
-                    populate: {
-                        path: 'shoes_id'
-                    }
-                })
-                .sort({ createdAt: -1 });
-
-            res.status(200).json({
-                status: 200,
-                message: "Danh sách yêu cầu trả hàng của user",
-                data: returnRequests
-            });
-        } catch (error) {
-            res.status(500).json({
-                status: 500,
-                message: "Lỗi khi lấy yêu cầu trả hàng của user",
-                error: error.message
-            });
-        }
-    },
-
-    // Cập nhật trạng thái yêu cầu trả hàng (admin)
+    // Cập nhật trạng thái yêu cầu trả hàng
     updateReturnRequestStatus: async (req, res) => {
         try {
             const { status } = req.body;
-
             const returnRequest = await ReturnRequest.findById(req.params.id)
-                .populate('order_detail_id');
+                .populate('order_id');
 
             if (!returnRequest) {
                 return res.status(404).json({
@@ -252,9 +147,8 @@ module.exports = {
             // Validate status transition
             const validTransitions = {
                 'pending': ['approved', 'rejected'],
-                'approved': ['completed'],
-                'rejected': [],
-                'completed': []
+                'approved': [],
+                'rejected': []
             };
 
             if (!validTransitions[returnRequest.status].includes(status)) {
@@ -264,10 +158,11 @@ module.exports = {
                 });
             }
 
-            // Nếu hoàn thành trả hàng, cập nhật số lượng trong order detail
-            if (status === 'completed') {
-                returnRequest.order_detail_id.quantity -= returnRequest.quality;
-                await returnRequest.order_detail_id.save();
+            // Nếu approve thì cập nhật trạng thái đơn hàng
+            if (status === 'approved') {
+                await Order.findByIdAndUpdate(returnRequest.order_id._id, {
+                    status: 'returned'
+                });
             }
 
             returnRequest.status = status;
@@ -278,7 +173,9 @@ module.exports = {
                 message: "Cập nhật trạng thái thành công",
                 data: returnRequest
             });
+
         } catch (error) {
+            console.error('Error updating return request status:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi cập nhật trạng thái",
@@ -287,7 +184,6 @@ module.exports = {
         }
     },
 
-    // Xóa yêu cầu trả hàng (chỉ xóa được khi ở trạng thái pending hoặc rejected)
     deleteReturnRequest: async (req, res) => {
         try {
             const returnRequest = await ReturnRequest.findById(req.params.id);
@@ -299,32 +195,20 @@ module.exports = {
                 });
             }
 
-            if (!['pending', 'rejected'].includes(returnRequest.status)) {
-                return res.status(400).json({
-                    status: 400,
-                    message: "Chỉ có thể xóa yêu cầu đang chờ xử lý hoặc đã bị từ chối"
-                });
+            // Xóa ảnh khỏi Cloudinary
+            for (const image of returnRequest.images) {
+                await deleteFromCloudinary(image.public_id);
             }
 
-            // Xóa files
-            // for (const imageUrl of returnRequest.images) {
-            //     const filename = imageUrl.split('/').pop();
-            //     const filePath = path.join('public', 'uploads', filename);
-            //     await deleteFile(filePath);
-            // }
-
-            // ✅ Xóa ảnh khỏi Cloudinary
-            for (const img of returnRequest.images) {
-                await deleteFromCloudinary(img.public_id);
-            }
-
-            await returnRequest.remove();
+            await ReturnRequest.findByIdAndDelete(req.params.id);
 
             res.status(200).json({
                 status: 200,
-                message: "Xóa yêu cầu trả hàng thành công"
+                message: "Yêu cầu trả hàng đã được xóa thành công"
             });
+
         } catch (error) {
+            console.error('Error deleting return request:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi xóa yêu cầu trả hàng",
