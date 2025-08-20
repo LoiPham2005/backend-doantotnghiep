@@ -10,7 +10,7 @@ const favouriteSchema = new Schema({
     shoes_id: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Shoes',
-        required: true 
+        required: true  
     }
 }, {
     timestamps: true

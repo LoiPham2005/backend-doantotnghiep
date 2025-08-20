@@ -1,5 +1,6 @@
 const Review = require('../models/reviews.model');
 const Order = require('../models/orders.model');
+const Shoes = require('../models/shoes.model');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -20,6 +21,39 @@ const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../uti
 //         });
 //     });
 // };
+
+// Thêm hàm helper để cập nhật rating trung bình
+const updateAverageRating = async (productId) => {
+    try {
+        const avgRating = await Review.aggregate([
+            {
+                $match: {
+                    product_id: new mongoose.Types.ObjectId(productId),
+                    is_verified: true
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$rating" },
+                    totalReviews: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const newRating = avgRating[0]?.averageRating || 0;
+
+        // Cập nhật rating trong shoes model
+        await Shoes.findByIdAndUpdate(productId, {
+            rating: Number(newRating.toFixed(1)) // Làm tròn 1 chữ số thập phân
+        });
+
+        return newRating;
+    } catch (error) {
+        console.error('Error updating average rating:', error);
+        throw error;
+    }
+};
 
 module.exports = {
     // Thêm đánh giá mới
@@ -56,22 +90,12 @@ module.exports = {
                 });
             }
 
-            // Xử lý media files
-            // let mediaFiles = [];
-            // if (req.files && req.files.length > 0) {
-            //     mediaFiles = req.files.map(file => ({
-            //         type: file.mimetype.startsWith('image/') ? 'image' : 'video',
-            //         url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`
-            //     }));
-            // }
-
-            // ✅ Upload media lên Cloudinary
             let mediaFiles = [];
             if (req.files && req.files.length > 0) {
                 for (const file of req.files) {
                     const result = await uploadToCloudinary(file.path, 'reviews');
                     mediaFiles.push({
-                        type: result.type,     // image or video
+                        type: result.resource_type,
                         url: result.url,
                         public_id: result.public_id
                     });
@@ -89,6 +113,9 @@ module.exports = {
 
             await newReview.save();
 
+            // Cập nhật rating trung bình
+            const averageRating = await updateAverageRating(product_id);
+
             // Populate thông tin user và product
             const populatedReview = await Review.findById(newReview._id)
                 .populate('user_id', 'username avatar')
@@ -98,7 +125,10 @@ module.exports = {
             res.status(200).json({
                 status: 200,
                 message: "Thêm đánh giá thành công",
-                data: populatedReview
+                data: {
+                    review: populatedReview,
+                    averageRating
+                }
             });
 
         } catch (error) {

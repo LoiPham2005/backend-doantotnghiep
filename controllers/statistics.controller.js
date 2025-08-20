@@ -7,63 +7,59 @@ const Shoes = require('../models/shoes.model');
 module.exports = {
     getDailyStats: async (req, res) => {
         try {
+            const { startDate, endDate } = req.query;
+            const dateQuery = {};
+            
+            if (startDate && endDate) {
+                dateQuery.createdAt = {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate)
+                };
+            }
+
             // Get total users (excluding admins)
             const totalUsers = await User.countDocuments({ role: 'user' });
 
-            // Get total orders
-            const totalOrders = await Order.countDocuments();
+            // Get orders within date range
+            const totalOrders = await Order.countDocuments(dateQuery);
 
-            // Get pending orders
-            const pendingOrders = await Order.countDocuments({ status: 'pending' });
+            // Get pending orders within date range
+            const pendingOrders = await Order.countDocuments({
+                ...dateQuery,
+                status: 'pending'
+            });
 
-            // Get total revenue from all completed orders
+            // Get total revenue from completed orders within date range
             const completedOrders = await Order.find({
+                ...dateQuery,
                 status: { $in: ['delivered', 'received'] }
             });
-            const totalRevenue = completedOrders.reduce((sum, order) => sum + order.final_total, 0);
+            const totalRevenue = completedOrders.reduce((sum, order) => 
+                sum + order.final_total, 0
+            );
 
-            // Calculate percentage changes
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            yesterday.setHours(0, 0, 0, 0);
+            // Calculate percentage changes compared to previous period
+            const previousStart = new Date(startDate);
+            previousStart.setDate(previousStart.getDate() - 
+                (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)
+            );
+            const previousEnd = new Date(startDate);
 
-            const todayOrders = await Order.countDocuments({
-                createdAt: { $gte: yesterday }
-            });
-
-            const yesterdayStart = new Date(yesterday);
-            const yesterdayEnd = new Date(yesterday);
-            yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
-            const yesterdayOrders = await Order.countDocuments({
+            // Get previous period orders
+            const previousPeriodOrders = await Order.countDocuments({
                 createdAt: {
-                    $gte: yesterdayStart,
-                    $lt: yesterdayEnd
+                    $gte: previousStart,
+                    $lt: previousEnd
                 }
             });
 
-            // Calculate revenue for today and yesterday
-            const todayRevenue = await Order.aggregate([
-                {
-                    $match: {
-                        createdAt: { $gte: yesterday },
-                        status: { $in: ['delivered', 'received'] }
-                    }
-                },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: '$final_total' }
-                    }
-                }
-            ]);
-
-            const yesterdayRevenue = await Order.aggregate([
+            // Get previous period revenue
+            const previousPeriodRevenue = await Order.aggregate([
                 {
                     $match: {
                         createdAt: {
-                            $gte: yesterdayStart,
-                            $lt: yesterdayEnd
+                            $gte: previousStart,
+                            $lt: previousEnd
                         },
                         status: { $in: ['delivered', 'received'] }
                     }
@@ -76,14 +72,14 @@ module.exports = {
                 }
             ]);
 
-            // Calculate percentage changes
-            const ordersChange = yesterdayOrders === 0
+            // Calculate changes
+            const ordersChange = previousPeriodOrders === 0 
                 ? 100
-                : ((todayOrders - yesterdayOrders) / yesterdayOrders * 100).toFixed(1);
+                : ((totalOrders - previousPeriodOrders) / previousPeriodOrders * 100).toFixed(1);
 
-            const revenueChange = yesterdayRevenue.length === 0 || yesterdayRevenue[0].total === 0
-                ? 100
-                : (((todayRevenue[0]?.total || 0) - yesterdayRevenue[0].total) / yesterdayRevenue[0].total * 100).toFixed(1);
+            const revenueChange = previousPeriodRevenue.length === 0 
+                ? 100 
+                : ((totalRevenue - previousPeriodRevenue[0].total) / previousPeriodRevenue[0].total * 100).toFixed(1);
 
             res.status(200).json({
                 status: 200,

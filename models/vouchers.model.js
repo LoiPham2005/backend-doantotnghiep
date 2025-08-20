@@ -11,6 +11,11 @@ const voucherSchema = new Schema({
         required: true,
         unique: true
     },
+    type: {                      // Thêm trường type để phân biệt
+        type: String,
+        enum: ['order', 'shipping'],  // Voucher giảm giá đơn hoặc giảm phí ship
+        required: true
+    },
     discount_type: {
         type: String,
         enum: ['percentage', 'fixed'],
@@ -41,6 +46,10 @@ const voucherSchema = new Schema({
         type: Number,
         required: true,
         min: 0
+    },
+    is_active: {                // Thêm trường trạng thái
+        type: Boolean,
+        default: true
     }
 }, {
     timestamps: true

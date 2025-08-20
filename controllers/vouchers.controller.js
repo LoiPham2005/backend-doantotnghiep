@@ -9,6 +9,7 @@ module.exports = {
             const {
                 name,
                 code,
+                type,
                 discount_type,
                 discount_value,
                 minimum_order_value,
@@ -18,7 +19,32 @@ module.exports = {
                 quantity
             } = req.body;
 
-            // Validate code
+            // Validate required fields
+            if (!name || !code || !type || !discount_type || !discount_value ||
+                !minimum_order_value || !maximum_discount || !start_date || !end_date || !quantity) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Vui lòng điền đầy đủ thông tin"
+                });
+            }
+
+            // Validate discount value
+            if (discount_type === 'percentage' && (discount_value <= 0 || discount_value > 100)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Giá trị phần trăm giảm giá phải từ 1-100"
+                });
+            }
+
+            // Validate type
+            if (!['order', 'shipping'].includes(type)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Loại voucher không hợp lệ"
+                });
+            }
+
+            // Validate existing code
             const existingVoucher = await Voucher.findOne({ code });
             if (existingVoucher) {
                 return res.status(400).json({
@@ -27,19 +53,21 @@ module.exports = {
                 });
             }
 
-            // Create new voucher
-            const newVoucher = new Voucher({
+            const voucherData = {
                 name,
                 code,
+                type,
                 discount_type,
-                discount_value,
-                minimum_order_value,
-                maximum_discount,
+                discount_value: Number(discount_value),
+                minimum_order_value: Number(minimum_order_value),
+                maximum_discount: Number(maximum_discount), // Đảm bảo là số nguyên
                 start_date,
                 end_date,
-                quantity
-            });
+                quantity: Number(quantity)
+            };
 
+            // Create voucher
+            const newVoucher = new Voucher(voucherData);
             await newVoucher.save();
 
             res.status(200).json({
@@ -105,6 +133,7 @@ module.exports = {
         try {
             const {
                 name,
+                type,              // Thêm type
                 discount_type,
                 discount_value,
                 minimum_order_value,
@@ -113,6 +142,13 @@ module.exports = {
                 end_date,
                 quantity
             } = req.body;
+
+            if (!['order', 'shipping'].includes(type)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Loại voucher không hợp lệ"
+                });
+            }
 
             const voucher = await Voucher.findById(req.params.id);
             if (!voucher) {
@@ -124,6 +160,7 @@ module.exports = {
 
             // Cập nhật thông tin
             voucher.name = name;
+            voucher.type = type;
             voucher.discount_type = discount_type;
             voucher.discount_value = discount_value;
             voucher.minimum_order_value = minimum_order_value;

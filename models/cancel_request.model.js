@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const returnRequestSchema = new Schema({
+const cancelRequestSchema = new Schema({
     order_id: {
         type: Schema.Types.ObjectId,
         ref: 'Order',
         required: true
     },
     user_id: {
-        type: Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId, 
         ref: 'User',
         required: true
     },
@@ -16,22 +16,13 @@ const returnRequestSchema = new Schema({
         type: String,
         required: true
     },
-    quality: {
-        type: Number,
-        required: true,
-        min: 1
-    },
     status: {
         type: String,
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
     },
-    images: [{
-        url: { type: String, required: true },
-        public_id: { type: String, required: true }
-    }]
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('ReturnRequest', returnRequestSchema);
+module.exports = mongoose.model('CancelRequest', cancelRequestSchema);

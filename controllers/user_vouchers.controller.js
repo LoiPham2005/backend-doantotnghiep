@@ -158,5 +158,79 @@ module.exports = {
                 error: error.message
             });
         }
+    },
+
+    // Lấy danh sách voucher shipping của user
+    getUserShippingVouchers: async (req, res) => {
+        try {
+            const { user_id } = req.params;
+
+            const userVouchers = await UserVoucher.find({
+                user_id,
+                status: 'available'
+            })
+                .populate({
+                    path: 'voucher_id',
+                    match: {
+                        type: 'shipping',
+                        end_date: { $gt: new Date() },  // Chỉ lấy voucher còn hiệu lực
+                        is_active: true                  // Chỉ lấy voucher đang active
+                    }
+                })
+                .sort({ createdAt: -1 });
+
+            // Lọc bỏ các null value (do populate match)
+            const validVouchers = userVouchers.filter(uv => uv.voucher_id !== null);
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách voucher shipping của user",
+                data: validVouchers
+            });
+
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách voucher shipping",
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy danh sách voucher order của user 
+    getUserOrderVouchers: async (req, res) => {
+        try {
+            const { user_id } = req.params;
+
+            const userVouchers = await UserVoucher.find({
+                user_id,
+                status: 'available'
+            })
+                .populate({
+                    path: 'voucher_id',
+                    match: {
+                        type: 'order',
+                        end_date: { $gt: new Date() },  // Chỉ lấy voucher còn hiệu lực
+                        is_active: true                  // Chỉ lấy voucher đang active
+                    }
+                })
+                .sort({ createdAt: -1 });
+
+            // Lọc bỏ các null value (do populate match)
+            const validVouchers = userVouchers.filter(uv => uv.voucher_id !== null);
+
+            res.status(200).json({
+                status: 200,
+                message: "Danh sách voucher order của user",
+                data: validVouchers
+            });
+
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi lấy danh sách voucher order",
+                error: error.message
+            });
+        }
     }
 };

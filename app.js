@@ -17,15 +17,35 @@ const io = initializeSocket(server);
 app.set('io', io);
 
 // CORS configuration
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "http://localhost:3000", 
+//   "https://web-admin-doantotnghiep.onrender.com"
+// ];
+
+// app.use(cors({
+//   origin: function (origin, callback) {
+//     if (!origin) return callback(null, true);
+//     if (allowedOrigins.includes(origin)) {
+//       return callback(null, true); 
+//     }
+//     return callback(new Error('Not allowed by CORS'));
+//   },
+//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   credentials: true,
+//   allowedHeaders: ["Content-Type", "Authorization"]
+// }));
+
+// CORS middleware 
 app.use(cors({
-  origin: ['http://160.191.51.75:5173','http://160.191.51.75:3000', 'http://localhost:5173', 'https://sneakup1.netlify.app'], // Thêm domain của frontend
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  origin: '*', // ✅ Cho phép tất cả domain
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true // ✅ Cho phép gửi cookie
 }));
 
-// Enable pre-flight
-app.options('*', cors());
+// ✅ Đáp ứng OPTIONS request cho preflight
+// app.options('*', cors());
 
 // Middlewares
 app.use(logger('dev'));
@@ -52,7 +72,7 @@ app.use('/api/users', usersRouter);
 database.connect();
 
 // Error handler
-app.use(function (err, req, res, next) {
+app.use(function(err, req, res, next) {
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
   res.status(err.status || 500);
