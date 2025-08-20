@@ -18,7 +18,8 @@ app.set('io', io);
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://160.191.51.75:5173','http://160.191.51.75:3000', 'http://localhost:5173', 'https://sneakup1.netlify.app'], // Thêm domain của frontend
+  // origin: ['http://160.191.51.75:5173','http://160.191.51.75:3000', 'http://localhost:5173', 'https://sneakup1.netlify.app'], // Thêm domain của frontend
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
