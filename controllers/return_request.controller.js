@@ -135,7 +135,8 @@ module.exports = {
         try {
             const { status } = req.body;
             const returnRequest = await ReturnRequest.findById(req.params.id)
-                .populate('order_id');
+                .populate('order_id')
+                .populate('user_id', 'username email');
 
             if (!returnRequest) {
                 return res.status(404).json({

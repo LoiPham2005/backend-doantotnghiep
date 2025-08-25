@@ -7,7 +7,16 @@ module.exports = {
     // Tạo yêu cầu hủy đơn
     createCancelRequest: async (req, res) => {
         try {
-            const { order_id, user_id, reason } = req.body;
+            const { order_id, user_id, reason, is_admin_cancel } = req.body;
+            console.log('Create cancel request:', { order_id, user_id, reason, is_admin_cancel });
+
+            // Validate input
+            if (!order_id || !user_id || !reason) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Missing required fields"
+                });
+            }
 
             // Kiểm tra đơn hàng tồn tại
             const order = await Order.findById(order_id);
@@ -26,12 +35,13 @@ module.exports = {
                 });
             }
 
-            // Tạo yêu cầu hủy và cập nhật trạng thái đơn hàng ngay lập tức
+            // Tạo yêu cầu hủy 
             const cancelRequest = new CancelRequest({
                 order_id,
                 user_id,
                 reason,
-                status: 'approved' // Tự động approve
+                status: 'approved', // Auto approve 
+                is_admin_cancel: is_admin_cancel || false
             });
 
             await cancelRequest.save();
@@ -41,10 +51,10 @@ module.exports = {
                 status: 'cancelled'
             });
 
-            // Tạo thông báo cho admin
+            // Tạo thông báo
             const notification = new Notification({
                 title: 'Đơn hàng đã bị hủy',
-                content: `Đơn hàng #${order._id.toString().slice(-6)} đã bị hủy. Lý do: ${reason}`,
+                content: `Đơn hàng #${order._id.toString().slice(-6)} đã bị hủy. ${is_admin_cancel ? 'Lý do từ admin: ' : 'Lý do: '}${reason}`,
                 type: 'order'
             });
 
@@ -57,6 +67,7 @@ module.exports = {
             });
 
         } catch (error) {
+            console.error("Error creating cancel request:", error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi hủy đơn hàng",
