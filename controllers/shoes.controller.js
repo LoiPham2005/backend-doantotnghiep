@@ -6,6 +6,7 @@ const path = require('path'); // Thêm import path
 const Brand = require('../models/brand.model'); // Import model Brand
 const Category = require('../models/category.model'); // Import model Category
 const Size = require('../models/sizes.model'); // Import model Category
+const Review = require('../models/reviews.model');
 // const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
 
@@ -277,12 +278,26 @@ module.exports = {
                 .populate('size_id')
                 .populate('color_id');
 
+            const reviews = await Review.find({ product_id: shoe._id })
+                .populate('user_id', 'username email avatar')
+                .populate({
+                    path: 'variant_id',
+                    populate: [
+                        // { path: 'shoes_id', select: 'name media' },
+                        { path: 'color_id', select: 'name value' },
+                        { path: 'size_id', select: 'size_value' }
+                    ]
+                });
+            const totalReviews = await Review.countDocuments({ product_id: shoe._id });
+
             res.status(200).json({
                 status: 200,
                 message: "Chi tiết sản phẩm",
                 data: {
                     ...shoe._doc,
-                    variants
+                    variants,
+                    reviews: reviews,
+                    totalReviews: totalReviews
                 }
             });
 

@@ -52,8 +52,9 @@ module.exports = {
             // Map payment method to MoMo requestType
             const requestType = {
                 momo_wallet: "captureWallet",
+                // momo_wallet: "payWithMethod",
                 atm: "payWithATM",
-                credit: "captureWallet" // MoMo uses same type for credit cards
+                credit: "payWithCC" // MoMo uses same type for credit cards
             }[paymentMethod];
 
             // Tạo requestId ngẫu nhiên
@@ -142,6 +143,86 @@ module.exports = {
         }
     },
 
+
+    // createPayment: async (req, res) => {
+    //     try {
+    //         const { amount, orderId, orderInfo } = req.body;
+
+    //         if (!amount || !orderId || !orderInfo) {
+    //             return res.status(400).json({
+    //                 status: 400,
+    //                 message: "Missing required fields"
+    //             });
+    //         }
+
+    //         if (isNaN(amount) || amount <= 0) {
+    //             return res.status(400).json({
+    //                 status: 400,
+    //                 message: "Invalid amount"
+    //             });
+    //         }
+
+    //         // Dùng requestType chung để MoMo hiển thị nhiều phương thức thanh toán
+    //         const requestType = "payWithMethod";
+    //         const requestId = `${momoConfig.partnerCode}-${Date.now()}`;
+
+    //         // Tạo chữ ký
+    //         const rawSignature = `accessKey=${momoConfig.accessKey}&amount=${amount}&extraData=&ipnUrl=${momoConfig.ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${momoConfig.partnerCode}&redirectUrl=${momoConfig.redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+    //         const signature = crypto.createHmac('sha256', momoConfig.secretKey).update(rawSignature).digest('hex');
+
+    //         const requestBody = {
+    //             partnerCode: momoConfig.partnerCode,
+    //             partnerName: "SnakeUp Store",
+    //             storeId: "SnakeUpStore",
+    //             requestId,
+    //             amount,
+    //             orderId,
+    //             orderInfo,
+    //             redirectUrl: momoConfig.redirectUrl,
+    //             ipnUrl: momoConfig.ipnUrl,
+    //             lang: "vi",
+    //             requestType,
+    //             autoCapture: true,
+    //             extraData: "",
+    //             orderGroupId: "",
+    //             signature
+    //         };
+
+    //         const response = await fetch(momoConfig.apiEndpoint, {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //             },
+    //             body: JSON.stringify(requestBody)
+    //         });
+
+    //         const responseData = await response.json();
+    //         console.log("MoMo response:", responseData);
+
+    //         if (responseData.resultCode === 0) {
+    //             res.json({
+    //                 status: 200,
+    //                 message: "Tạo đơn thanh toán thành công",
+    //                 data: {
+    //                     payUrl: responseData.payUrl, // Link có thể chọn ví, ATM, credit
+    //                     orderId,
+    //                     requestId,
+    //                     amount
+    //                 }
+    //             });
+    //         } else {
+    //             throw new Error(responseData.message || "MoMo payment creation failed");
+    //         }
+    //     } catch (error) {
+    //         console.error("Error creating MoMo payment:", error);
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi tạo thanh toán",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
     handleCallback: async (req, res) => {
         try {
             console.log("Received callback data:", req.body);
@@ -228,101 +309,101 @@ module.exports = {
 
     // Thêm hàm hoàn tiền
     refundPayment: async (req, res) => {
-    try {
-        const { orderId, amount, transId, description } = req.body;
+        try {
+            const { orderId, amount, transId, description } = req.body;
 
-        // Validate input
-        if (!orderId || !amount || !transId) {
-            return res.status(400).json({
-                status: 400,
-                message: "Missing required fields",
-                requiredFields: {
-                    orderId: "string", 
-                    amount: "number",
-                    transId: "string"
-                }
-            });
-        }
+            // Validate input
+            if (!orderId || !amount || !transId) {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Missing required fields",
+                    requiredFields: {
+                        orderId: "string",
+                        amount: "number",
+                        transId: "string"
+                    }
+                });
+            }
 
-        // Tạo requestId cho refund
-        const requestId = `REFUND-${momoConfig.partnerCode}-${Date.now()}`;
-        
-        // Tạo orderId riêng cho giao dịch hoàn tiền
-        const refundOrderId = `REFUND-${orderId}-${Date.now()}`; 
+            // Tạo requestId cho refund
+            const requestId = `REFUND-${momoConfig.partnerCode}-${Date.now()}`;
 
-        // Tạo chữ ký cho refund với orderId mới
-        const rawSignature = `accessKey=${momoConfig.accessKey}&amount=${amount}&description=${description}&orderId=${refundOrderId}&partnerCode=${momoConfig.partnerCode}&requestId=${requestId}&transId=${transId}`;
+            // Tạo orderId riêng cho giao dịch hoàn tiền
+            const refundOrderId = `REFUND-${orderId}-${Date.now()}`;
 
-        const signature = crypto.createHmac('sha256', momoConfig.secretKey)
-            .update(rawSignature)
-            .digest('hex');
+            // Tạo chữ ký cho refund với orderId mới
+            const rawSignature = `accessKey=${momoConfig.accessKey}&amount=${amount}&description=${description}&orderId=${refundOrderId}&partnerCode=${momoConfig.partnerCode}&requestId=${requestId}&transId=${transId}`;
 
-        // Tạo payload cho request refund với orderId mới
-        const requestBody = {
-            partnerCode: momoConfig.partnerCode,
-            orderId: refundOrderId, // Sử dụng orderId mới
-            requestId: requestId,
-            amount: amount,
-            transId: transId,
-            description: description || `Hoàn tiền cho đơn hàng ${orderId}`,
-            signature: signature,
-            lang: 'vi'
-        };
+            const signature = crypto.createHmac('sha256', momoConfig.secretKey)
+                .update(rawSignature)
+                .digest('hex');
 
-        console.log("Refund request body:", requestBody);
-
-        // Gọi API hoàn tiền của MoMo
-        const response = await fetch(momoConfig.refundEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        const responseData = await response.json();
-        console.log("MoMo refund response:", responseData);
-
-        if (responseData.resultCode === 0) {
-            // Cập nhật trạng thái đơn hàng và lịch sử thanh toán
-            await Order.findByIdAndUpdate(orderId, {
-                status: 'refunded',
-                payment_status: 'refunded',
-                refund_trans_id: responseData.transId
-            });
-
-            // Tạo lịch sử hoàn tiền
-            await PaymentHistory.create({
-                order_id: orderId,
+            // Tạo payload cho request refund với orderId mới
+            const requestBody = {
+                partnerCode: momoConfig.partnerCode,
+                orderId: refundOrderId, // Sử dụng orderId mới
+                requestId: requestId,
                 amount: amount,
-                payment_method: 'banking',
-                transaction_id: responseData.transId,
-                type: 'refund',
-                status: 'completed',
-                description: description
+                transId: transId,
+                description: description || `Hoàn tiền cho đơn hàng ${orderId}`,
+                signature: signature,
+                lang: 'vi'
+            };
+
+            console.log("Refund request body:", requestBody);
+
+            // Gọi API hoàn tiền của MoMo
+            const response = await fetch(momoConfig.refundEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
             });
 
-            res.status(200).json({
-                status: 200,
-                message: "Hoàn tiền thành công",
-                data: {
-                    orderId,
-                    refundOrderId, // Thêm refundOrderId vào response
-                    refundId: responseData.transId,
-                    amount
-                }
+            const responseData = await response.json();
+            console.log("MoMo refund response:", responseData);
+
+            if (responseData.resultCode === 0) {
+                // Cập nhật trạng thái đơn hàng và lịch sử thanh toán
+                await Order.findByIdAndUpdate(orderId, {
+                    status: 'refunded',
+                    payment_status: 'refunded',
+                    refund_trans_id: responseData.transId
+                });
+
+                // Tạo lịch sử hoàn tiền
+                await PaymentHistory.create({
+                    order_id: orderId,
+                    amount: amount,
+                    payment_method: 'banking',
+                    transaction_id: responseData.transId,
+                    type: 'refund',
+                    status: 'completed',
+                    description: description
+                });
+
+                res.status(200).json({
+                    status: 200,
+                    message: "Hoàn tiền thành công",
+                    data: {
+                        orderId,
+                        refundOrderId, // Thêm refundOrderId vào response
+                        refundId: responseData.transId,
+                        amount
+                    }
+                });
+            } else {
+                throw new Error(responseData.message || "Refund failed");
+            }
+
+        } catch (error) {
+            console.error("Error processing refund:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Lỗi khi hoàn tiền",
+                error: error.message
             });
-        } else {
-            throw new Error(responseData.message || "Refund failed");
         }
-
-    } catch (error) {
-        console.error("Error processing refund:", error);
-        res.status(500).json({
-            status: 500,
-            message: "Lỗi khi hoàn tiền",
-            error: error.message
-        });
     }
-}
 };

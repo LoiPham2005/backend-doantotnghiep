@@ -14,7 +14,7 @@ module.exports = {
             // Kiểm tra tên danh mục đã tồn tại cho brand này chưa
             const existingCategory = await modelCategory.findOne({
                 name,
-                brand_id
+                // brand_id
             });
 
             if (existingCategory) {
@@ -37,7 +37,7 @@ module.exports = {
 
             const category = new modelCategory({
                 name,
-                brand_id,
+                // brand_id,
                 media: result.url,
                 cloudinary_id: result.public_id
             });

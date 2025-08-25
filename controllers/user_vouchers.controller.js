@@ -40,7 +40,7 @@ module.exports = {
             res.status(200).json({
                 status: 200,
                 message: "Thêm voucher cho user thành công",
-                data: newUserVoucher
+                data: await newUserVoucher.populate('voucher_id') // trả về đầy đủ voucher
             });
         } catch (error) {
             res.status(500).json({

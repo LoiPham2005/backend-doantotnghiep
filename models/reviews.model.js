@@ -12,6 +12,11 @@ const reviewSchema = new Schema({
         ref: 'Shoes',
         required: true
     },
+    variant_id: {  // Thêm trường variant_id
+        type: Schema.Types.ObjectId,
+        ref: 'ShoesVariant',
+        required: true
+    },
     order_id: {
         type: Schema.Types.ObjectId,
         ref: 'Order',
@@ -32,10 +37,8 @@ const reviewSchema = new Schema({
             type: String,
             enum: ['image', 'video'],
         },
-        url: {
-            type: String,
-        },
-        public_id: { type: String } 
+        url: String,
+        public_id: String
     }],
     is_verified: {
         type: Boolean,
@@ -45,7 +48,7 @@ const reviewSchema = new Schema({
     timestamps: true
 });
 
-// Đảm bảo mỗi user chỉ review một sản phẩm một lần trong một đơn hàng
-reviewSchema.index({ user_id: 1, product_id: 1, order_id: 1 }, { unique: true });
+// Sửa lại index để thêm variant_id
+reviewSchema.index({ user_id: 1, product_id: 1, variant_id: 1, order_id: 1 }, { unique: true });
 
 module.exports = mongoose.model('Review', reviewSchema);
