@@ -136,7 +136,7 @@ exports.suggestProducts = async (req, res) => {
                     shoes_id: shoe._id,
                     status: 'available',
                     quantity_in_stock: { $gt: 0 },
-                })
+                },)
                     .populate('size_id')
                     .populate('color_id');
 
@@ -153,11 +153,11 @@ exports.suggestProducts = async (req, res) => {
                     brand: shoe.brand_id?.name,
                     category: shoe.category_id?.name,
                     image: shoe.media?.[0]?.url || '',
-                    priceRange: `${minPrice.toLocaleString('vi-VN')} - ${maxPrice.toLocaleString('vi-VN')} VND`,
+                    priceRange: `${minPrice.toLocaleString('vi-VN')} - ${maxPrice.toLocaleString('vi-VN')} đ`,
                     variants: variants.map((v) => ({
                         color: v.color_id?.name,
                         size: v.size_id?.size_value,
-                        price: v.price.toLocaleString('vi-VN') + ' VND',
+                        price: v.price.toLocaleString('vi-VN') + ' đ',
                         stock: v.quantity_in_stock,
                     })),
                 };
@@ -189,16 +189,21 @@ exports.suggestProducts = async (req, res) => {
 
             👉 Hãy trả lời như sau:
             1. Viết phần mở đầu gợi ý 3 sản phẩm phù hợp và lý do.
-            2. Cuối cùng, trả về danh sách 3 ID sản phẩm được chọn, 
+                - Chỉ sử dụng Tên, Thương hiệu, Danh mục, Mô tả, Giá, Biến thể (viết ngắn gọn không cần chi tiết quá, phần liệt kê có thể sử dụng -).
+                - KHÔNG được viết ID trong phần trả lời này.
+                - Không được sử dụng ký tự Markdown (ví dụ: **, __, #, *).
+                - Trả lời chỉ bằng văn bản thuần túy.
+            2. Cuối cùng, trả về danh sách 3 ID sản phẩm được chọn, (phải trả về ít nhất 1 ID)
             dưới dạng JSON như sau:
             {"selected_product_ids": ["id1", "id2", "id3"]}
             `;
 
         // 3. Gọi Gemini
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const fullText = response.text();
+        console.log('Gemini Response:', JSON.stringify(fullText, null, 2));
 
         // 4. Parse JSON cuối trong text (ID của 3 sản phẩm được chọn)
         const match = fullText.match(/\{[\s\S]*"selected_product_ids"[\s\S]*?\}/);
@@ -221,7 +226,7 @@ exports.suggestProducts = async (req, res) => {
             ai_response: fullText,
             selected_products: selectedProducts.map(p => ({
                 product_id: p.id,
-                name: p.name, 
+                name: p.name,
                 image: p.image,
                 price_range: p.priceRange
             }))
@@ -233,30 +238,38 @@ exports.suggestProducts = async (req, res) => {
             status: 200,
             message: 'Gợi ý sản phẩm thành công',
             data: {
-            chat_id: chatLog._id,
-            suggestions: fullText,
-            products: selectedProducts
+                chat_id: chatLog._id,
+                suggestions: fullText,
+                products: selectedProducts
             }
-            
-        });
-    } 
-    catch (error) {
-    console.error('AI Suggestion Error:', error);
 
-    // Nếu model AI quá tải (503)
-    if (error.status === 503 || error.message?.includes('503')) {
-        return res.status(503).json({
-            status: 503,
-            message: 'Dịch vụ AI đang quá tải. Vui lòng thử lại sau.',
         });
     }
+    catch (error) {
+        console.error('AI Suggestion Error:', error);
 
-    res.status(500).json({
-        status: 500,
-        message: 'AI error',
-        error: error.message
-    });
-}
+        if (error.response?.status === 429) {
+            // Hết quota
+            return res.status(429).json({
+                status: 429,
+                message: "Bạn đã vượt quá giới hạn gọi API AI hôm nay. Vui lòng thử lại sau hoặc nâng cấp gói!"
+            });
+        }
+
+        // Nếu model AI quá tải (503)
+        if (error.status === 503 || error.message?.includes('503')) {
+            return res.status(503).json({
+                status: 503,
+                message: 'Dịch vụ AI đang quá tải. Vui lòng thử lại sau.',
+            });
+        }
+
+        res.status(500).json({
+            status: 500,
+            message: 'AI error',
+            error: error.message
+        });
+    }
 
 };
 
@@ -266,18 +279,24 @@ exports.getChatHistory = async (req, res) => {
         const { user_id } = req.params;
         const { page = 1, limit = 10 } = req.query;
 
-        const chats = await ChatLog.find({ 
+        const chats = await ChatLog.find({
             user_id,
-            is_deleted: false 
+            is_deleted: false
         })
-        .sort({ created_at: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .populate('selected_products.product_id');
+            .sort({ created_at: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .populate({
+                path: 'selected_products.product_id',   // populate product_id
+                populate: {
+                    path: 'brand_id',                   // populate brand_id trong product
+                    select: 'name',                // chọn field cần thiết (nếu muốn)
+                }
+            });
 
-        const total = await ChatLog.countDocuments({ 
+        const total = await ChatLog.countDocuments({
             user_id,
-            is_deleted: false 
+            is_deleted: false
         });
 
         res.json({
@@ -306,7 +325,7 @@ exports.getChatHistory = async (req, res) => {
 exports.deleteChat = async (req, res) => {
     try {
         const { chat_id } = req.params;
-        
+
         const chat = await ChatLog.findById(chat_id);
         if (!chat) {
             return res.status(404).json({
@@ -326,7 +345,7 @@ exports.deleteChat = async (req, res) => {
     } catch (error) {
         console.error('Error deleting chat:', error);
         res.status(500).json({
-            success: false, 
+            success: false,
             message: 'Error deleting chat',
             error: error.message
         });
@@ -340,7 +359,7 @@ exports.deleteAllChats = async (req, res) => {
 
         await ChatLog.updateMany(
             { user_id },
-            { $set: { is_deleted: true }}
+            { $set: { is_deleted: true } }
         );
 
         res.json({

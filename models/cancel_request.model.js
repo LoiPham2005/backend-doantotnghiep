@@ -8,8 +8,7 @@ const cancelRequestSchema = new Schema({
         required: true
     },
     user_id: {
-        type: Schema.Types.ObjectId, 
-        ref: 'User',
+        type: Schema.Types.Mixed, // Cho phép cả ObjectId và string
         required: true
     },
     reason: {
@@ -21,6 +20,10 @@ const cancelRequestSchema = new Schema({
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
     },
+    is_admin_cancel: {
+        type: Boolean,
+        default: false
+    }
 }, {
     timestamps: true
 });

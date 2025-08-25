@@ -12,6 +12,8 @@ const Notification = require('../models/notification.model');
 const shoesModel = require('../models/shoes.model');
 const CancelRequest = require('../models/cancel_request.model');
 const ReturnRequest = require('../models/return_request.model');
+const Review = require('../models/reviews.model');
+const { createNotification } = require('./notification.controller');
 
 
 // Hàm tạo thông báo đơn hàng mới
@@ -146,7 +148,9 @@ module.exports = {
                 // user_voucher_id,
                 orderDetails,
                 order_voucher_id,
+                order_discount_amount,
                 ship_voucher_id,
+                ship_discount_amount,
                 note
             } = req.body;
             console.log('Discount from client:', discount);
@@ -191,21 +195,23 @@ module.exports = {
             //     });
             // }
 
+            const caculatorDiscount = order_discount_amount - ship_discount_amount;
+
             // 1. Tạo đơn hàng mới
             const newOrder = new Order({
                 user_id,
                 address_id,
                 total_price,
                 shipping_fee,
-                discount: discount,
+                discount: caculatorDiscount,
                 // final_total: calculatedFinalTotal,
                 final_total,
                 payment_method,
                 // user_voucher_id,
                 order_voucher_id,
-                order_discount_amount: validatedDiscount,
+                order_discount_amount: order_discount_amount || validatedDiscount,
                 ship_voucher_id,
-                ship_discount_amount: shipDiscountAmount,
+                ship_discount_amount: ship_discount_amount || shipDiscountAmount,
                 note,
                 status: 'pending'
             });
@@ -278,7 +284,7 @@ module.exports = {
                 );
             }
 
-            await Cart.deleteMany({ user_id });
+            // await Cart.deleteMany({ user_id });
 
             newPayment = new PaymentHistory({
                 user_id,
@@ -431,7 +437,7 @@ module.exports = {
     getOrderById: async (req, res) => {
         try {
             const order = await Order.findById(req.params.id)
-                .populate('user_id', 'username email')
+                .populate('user_id', 'username email avatar')
                 .populate('address_id')
                 .populate({
                     path: 'order_voucher_id',
@@ -466,6 +472,17 @@ module.exports = {
             // Lấy thông tin return request nếu có
             const returnRequest = await ReturnRequest.findOne({ order_id: order._id });
 
+            const reviews = await Review.find({ order_id: order._id, user_id: order.user_id._id })
+                .populate('user_id', 'username email avatar')
+                .populate({
+                    path: 'variant_id',
+                    populate: [
+                        { path: 'shoes_id', select: 'name media' },
+                        { path: 'color_id', select: 'name value' },
+                        { path: 'size_id', select: 'size_value' }
+                    ]
+                });
+
             // Format lại dữ liệu theo yêu cầu
             const formattedResponse = {
                 order: {
@@ -473,9 +490,11 @@ module.exports = {
                     user: {
                         _id: order.user_id._id,
                         username: order.user_id.username,
-                        email: order.user_id.email
+                        email: order.user_id.email,
+                        avatar: order.user_id.avatar
                     },
                     total_price: order.total_price,
+                    note: order.note,
                     discount: order.discount,
                     order_discount_amount: order.order_discount_amount,
                     ship_discount_amount: order.ship_discount_amount,
@@ -508,6 +527,7 @@ module.exports = {
                     _id: detail._id,
                     shoe_id: detail.variant_id.shoes_id._id,
                     productName: detail.variant_id.shoes_id.name,
+                    variant_id: detail.variant_id._id,
                     image: detail.variant_id.shoes_id.media?.[0]?.url || '',
                     color: {
                         name: detail.variant_id.color_id.name,
@@ -518,7 +538,8 @@ module.exports = {
                     quantity: detail.quantity
                 })),
                 cancel_request: cancelRequest, // Thêm thông tin cancel request
-                return_request: returnRequest  // Thêm thông tin return request
+                return_request: returnRequest,  // Thêm thông tin return request
+                review: reviews  // Thêm thông tin review
             };
 
             res.status(200).json({
@@ -569,10 +590,7 @@ module.exports = {
             }
 
             // Cập nhật trạng thái và delivery_date nếu status là delivered
-            const updateData = {
-                status: status
-            };
-
+            const updateData = { status };
             if (status === 'delivered') {
                 updateData.delivery_date = new Date();
             }
@@ -580,9 +598,10 @@ module.exports = {
             order.set(updateData);
             await order.save();
 
-            // Tạo thông báo cho user
+            // Tạo nội dung thông báo
             const notificationTitle = `Cập nhật đơn hàng #${order._id.toString().slice(-6)}`;
             let notificationContent = '';
+
             switch (status) {
                 case 'processing':
                     notificationContent = 'Đơn hàng của bạn đang được xử lý';
@@ -603,28 +622,42 @@ module.exports = {
                     notificationContent = 'Trạng thái đơn hàng đã được cập nhật';
             }
 
+            // Tạo notification trong DB
             const newNotification = new Notification({
                 title: notificationTitle,
                 content: notificationContent,
-                type: 'order'
+                type: 'order',
+                createdAt: new Date()
             });
 
             const savedNotification = await newNotification.save();
 
-            await NotificationUser.create({
+            // Tạo notification cho user
+            const notificationUser = await NotificationUser.create({
                 notification_id: savedNotification._id,
                 user_id: order.user_id._id,
                 is_read: false
             });
 
-            // Gửi thông báo realtime
+            // Lấy thông báo đã populate để gửi qua socket
+            const populatedNotification = await NotificationUser.findById(notificationUser._id)
+                .populate({
+                    path: 'notification_id',
+                    select: 'title content type createdAt'
+                });
+
+            // Gửi notification qua socket
             const io = req.app.get('io');
             if (io) {
-                io.to(`user_${order.user_id._id}`).emit('order_status_updated', {
+                // Emit event thông báo mới
+                io.to(`notification_${order.user_id._id}`).emit('notification_received', {
+                    notification: populatedNotification
+                });
+
+                // Emit event cập nhật trạng thái đơn hàng
+                io.to(`order_${order.user_id._id}`).emit('order_status_updated', {
                     orderId: order._id,
-                    status: status,
-                    title: notificationTitle,
-                    message: notificationContent
+                    status: status
                 });
             }
 

@@ -59,15 +59,28 @@ module.exports = {
     // Thêm đánh giá mới
     createReview: async (req, res) => {
         try {
-            const {
-                user_id,
-                product_id,
-                order_id,
-                rating,
-                comment
-            } = req.body;
+            let requestData = null;
+            if (req.body?.payload) {
+                try {
+                    requestData = JSON.parse(req.body.payload);
+                } catch (error) {
+                    return res.status(400).json({
+                        status: 400,
+                        message: "Dữ liệu không hợp lệ",
+                        error: error.message
+                    });
+                }
+            } else {
+                return res.status(400).json({
+                    status: 400,
+                    message: "Dữ liệu thiếu",
+                });
+            }
+            const { user_id, order_id, items } = requestData || {};
+            if (!user_id || !order_id || !Array.isArray(items) || items.length === 0) {
+                return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+            }
 
-            // Kiểm tra đơn hàng đã delivered
             const order = await Order.findById(order_id);
             if (!order || order.status !== 'delivered') {
                 return res.status(400).json({
@@ -76,60 +89,142 @@ module.exports = {
                 });
             }
 
-            // Kiểm tra đã đánh giá chưa
-            const existingReview = await Review.findOne({
-                user_id,
-                product_id,
-                order_id
-            });
+            const createdReviews = [];
 
-            if (existingReview) {
-                return res.status(400).json({
-                    status: 400,
-                    message: "Bạn đã đánh giá sản phẩm này từ đơn hàng này"
+            // Duyệt từng item (mỗi product+variant sẽ là 1 review)
+            for (const item of items) {
+                const { product_id, variant_id, rating, comment } = item || {};
+                if (!product_id || !variant_id || !rating || !comment) {
+                    return res.status(400).json({ message: 'Thiếu trường trong items' });
+                }
+
+                const existingReview = await Review.findOne({
+                    user_id,
+                    product_id,
+                    variant_id,
+                    order_id
                 });
-            }
 
-            let mediaFiles = [];
-            if (req.files && req.files.length > 0) {
-                for (const file of req.files) {
+                if (existingReview) {
+                    continue; // Bỏ qua nếu đã đánh giá
+                }
+
+                // Gom đúng file dành cho variant này bằng key: files_<variantId>
+                const variantKey = `files_${variant_id}`;
+                const filesForVariant = (req.files || []).filter(
+                    (f) => f.fieldname === variantKey
+                );
+
+                let mediaFiles = [];
+                for (const file of filesForVariant) {
                     const result = await uploadToCloudinary(file.path, 'reviews');
                     mediaFiles.push({
                         type: result.resource_type,
                         url: result.url,
-                        public_id: result.public_id
+                        public_id: result.public_id,
                     });
                 }
+
+                const review = new Review({
+                    user_id,
+                    order_id,
+                    product_id,
+                    variant_id,
+                    rating,
+                    comment,
+                    media: mediaFiles,
+                });
+
+                // Lưu từng review (index unique: user_id+product_id+variant_id+order_id)
+                const saved = await review.save();
+                await updateAverageRating(product_id);
+                createdReviews.push(saved);
             }
-
-            const newReview = new Review({
-                user_id,
-                product_id,
-                order_id,
-                rating,
-                comment,
-                media: mediaFiles
-            });
-
-            await newReview.save();
-
-            // Cập nhật rating trung bình
-            const averageRating = await updateAverageRating(product_id);
-
-            // Populate thông tin user và product
-            const populatedReview = await Review.findById(newReview._id)
-                .populate('user_id', 'username avatar')
-                .populate('product_id')
-                .populate('order_id');
 
             res.status(200).json({
                 status: 200,
                 message: "Thêm đánh giá thành công",
-                data: {
-                    review: populatedReview,
-                    averageRating
-                }
+                data: createdReviews
             });
+
+            // const { user_id, order_id, items } = req.body;
+
+            // Kiểm tra đơn hàng đã delivered
+            // const order = await Order.findById(order_id);
+            // if (!order || order.status !== 'delivered') {
+            //     return res.status(400).json({
+            //         status: 400,
+            //         message: "Chỉ có thể đánh giá sản phẩm từ đơn hàng đã giao"
+            //     });
+            // }
+
+            // let createdReviews = [];
+
+            // Xử lý từng item review
+            // for (const item of items) {
+            //     const { product_id, variant_id, rating, comment, media } = item;
+
+            //     // Kiểm tra đã đánh giá variant này chưa
+            //     const existingReview = await Review.findOne({
+            //         user_id,
+            //         product_id,
+            //         variant_id,
+            //         order_id
+            //     });
+
+            //     if (existingReview) {
+            //         continue; // Bỏ qua nếu đã đánh giá
+            //     }
+
+            //     let mediaFiles = [];
+            //     // Chỉ lấy những file được chỉ định cho item này
+            //     if (req.files && media && Array.isArray(media)) {
+            //         for (const index of media) {
+            //             const file = req.files[index];
+            //             if (file) {
+            //                 const result = await uploadToCloudinary(file.path, 'reviews');
+            //                 mediaFiles.push({
+            //                     type: result.resource_type,
+            //                     url: result.url,
+            //                     public_id: result.public_id
+            //                 });
+            //             }
+            //         }
+            //     }
+
+            //     const newReview = new Review({
+            //         user_id,
+            //         product_id,
+            //         variant_id,
+            //         order_id,
+            //         rating,
+            //         comment,
+            //         media: mediaFiles
+            //     });
+
+            //     await newReview.save();
+            //     await updateAverageRating(product_id);
+
+            //     const populatedReview = await Review.findById(newReview._id)
+            //         .populate('user_id', 'username avatar')
+            //         .populate('product_id')
+            //         .populate({
+            //             path: 'variant_id',
+            //             populate: [
+            //                 { path: 'color_id' },
+            //                 { path: 'size_id' }
+            //             ]
+            //         })
+            //         .populate('order_id');
+
+            //     createdReviews.push(populatedReview);
+            // }
+
+            // res.status(200).json({
+            //     status: 200,
+            //     message: "Thêm đánh giá thành công",
+            //     data: createdReviews
+            // });
 
         } catch (error) {
             // Xóa files nếu có lỗi
@@ -163,6 +258,14 @@ module.exports = {
 
             const reviews = await Review.find(query)
                 .populate('user_id', 'username avatar')
+                .populate('product_id')
+                .populate({
+                    path: 'variant_id',
+                    populate: [
+                        { path: 'color_id' },
+                        { path: 'size_id' }
+                    ]
+                })
                 .sort({ createdAt: -1 })
                 .skip((page - 1) * limit)
                 .limit(limit);

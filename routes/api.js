@@ -30,6 +30,7 @@ const statisticsController = require('../controllers/statistics.controller');
 const aiController = require('../controllers/aiSuggest.controller');
 const aiController2 = require('../controllers/ai_suggest_openrouter.controller');
 const cancelRequestController = require('../controllers/cancel_request.controller');
+const zalopay = require('../controllers/zalopay.controller');
 
 // đăng kí , đăng nhập
 router.post('/users/login', userController.login);
@@ -54,7 +55,7 @@ router.delete('/check/deleteOTP/:email', forgotPassword.deleteOtp);
 // API banner
 router.post('/banner/add', mdw.api_auth, upload.single('media'), bannerController.add);
 router.get('/banner/list', bannerController.list);
-router.put('/banner/edit/:id', mdw.api_auth, bannerController.edit);
+router.put('/banner/edit/:id', mdw.api_auth, upload.single('media'), bannerController.edit);
 router.delete('/banner/delete/:id', mdw.api_auth, bannerController.delete);
 
 // thêm sửa xoá hiển thị category
@@ -203,7 +204,8 @@ router.post('/momo/refund', mdw.api_auth, momo.refundPayment);
 
 // API quản lý đánh giá
 router.get('/reviews/product/:product_id', reviewsController.getProductReviews);
-router.post('/reviews/add', mdw.api_auth, upload.array('media', 5), reviewsController.createReview);
+// router.post('/reviews/add', mdw.api_auth, upload.array('media', 5), reviewsController.createReview);
+router.post('/reviews/add', mdw.api_auth, upload.any(), reviewsController.createReview);
 router.get('/reviews/user/:user_id', mdw.api_auth, reviewsController.getUserReviews);
 router.put('/reviews/verify/:id', mdw.api_auth, reviewsController.verifyReview);
 router.delete('/reviews/:id', mdw.api_auth, reviewsController.deleteReview);
@@ -252,5 +254,9 @@ router.get('/cancel-requests/:id', mdw.api_auth, cancelRequestController.getCanc
 router.get('/cancel-requests/user/:user_id', mdw.api_auth, cancelRequestController.getUserCancelRequests);
 router.put('/cancel-requests/status/:id', mdw.api_auth, cancelRequestController.updateCancelRequestStatus);
 router.delete('/cancel-requests/:id', mdw.api_auth, cancelRequestController.deleteCancelRequest);
+
+// Thanh toán ZaloPay
+router.post('/zalopay/create', mdw.api_auth, zalopay.createPayment);
+router.post('/zalopay/callback', zalopay.handleCallback);
 
 module.exports = router;
