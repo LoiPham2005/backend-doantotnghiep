@@ -2,8 +2,9 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const Users = new Schema({
-    avatar: { type: String, public_id: String },
-    fullname: { type: String, unique: true },
+    avatar: { type: String, default: null },
+    cloudinary_id: { type: String, default: null }, // Thêm trường riêng cho cloudinary_id
+    fullname: { type: String },
     username: { type: String, unique: true, required: true },
     email: { type: String, required: true },
     password: { type: String, required: true },
@@ -21,7 +22,7 @@ const Users = new Schema({
     },
     is_active: {
         type: Boolean,
-        default: true 
+        default: true
     }
 }, {
     timestamps: true,

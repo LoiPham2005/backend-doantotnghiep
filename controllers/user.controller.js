@@ -227,10 +227,11 @@ module.exports = {
             const userId = req.params.id;
             console.log('Edit user request:', { userId, body: req.body, file: req.file });
 
-            if (!userId) {
-                return res.status(400).json({
-                    status: 400,
-                    message: "User ID is required"
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy người dùng"
                 });
             }
 
@@ -259,43 +260,27 @@ module.exports = {
             }
 
             // Xử lý upload avatar
-            // if (req.file) {
-            //     // Lấy user cũ để xóa avatar cũ nếu có
-            //     const oldUser = await User.findById(userId);
-            //     if (oldUser && oldUser.avatar) {
-            //         const oldAvatarFileName = oldUser.avatar.split('/').pop();
-            //         const oldAvatarPath = path.join('public', 'uploads', oldAvatarFileName);
-            //         try {
-            //             await deleteFile(oldAvatarPath);
-            //         } catch (err) {
-            //             console.error('Error deleting old avatar:', err);
-            //         }
-            //     }
-
-            //     // Tạo URL cho avatar mới
-            //     updateData.avatar = createFileUrl(req, req.file.filename);
-            // } else if (req.body.avatar) {
-            //     // Nếu chỉ gửi URL avatar
-            //     updateData.avatar = req.body.avatar;
-            // }
-
             if (req.file) {
-                const user = await User.findById(userId);
-                if (!user) {
-                    return res.status(404).json({ status: 404, message: "Không tìm thấy người dùng" });
-                }
+                try {
+                    // Xóa avatar cũ nếu có
+                    if (user.cloudinary_id) {
+                        console.log('Deleting old avatar:', user.cloudinary_id);
+                        await deleteFromCloudinary(user.cloudinary_id);
+                    }
 
-                // ✅ Xoá avatar cũ nếu có
-                if (user.avatar && user.avatar.includes('res.cloudinary.com')) {
-                    const publicId = user.avatar.split('/').pop().split('.')[0]; // hoặc lưu public_id riêng trong DB
-                    await deleteFromCloudinary(`avatars/${publicId}`, 'image');
-                }
+                    // Upload avatar mới
+                    const result = await uploadToCloudinary(req.file.path, 'avatars');
+                    console.log('Upload result:', result);
 
-                // ✅ Upload ảnh mới lên Cloudinary
-                const result = await uploadToCloudinary(req.file.path, 'avatars');
-                updateData.avatar = result.secure_url;
-            } else if (req.body.avatar) {
-                updateData.avatar = req.body.avatar; // URL thủ công
+                    updateData.avatar = result.url;
+                    updateData.cloudinary_id = result.public_id;
+
+                } catch (uploadError) {
+                    console.error('Error handling avatar:', uploadError);
+                    // Xóa file tạm nếu upload thất bại
+                    await deleteFile(req.file.path);
+                    throw uploadError;
+                }
             }
 
             // Loại bỏ các trường undefined/null
@@ -305,7 +290,7 @@ module.exports = {
                 }
             });
 
-            console.log('Update data:', updateData);
+            console.log('Final update data:', updateData);
 
             const result = await User.findByIdAndUpdate(
                 userId,
@@ -333,20 +318,14 @@ module.exports = {
                     sex: result.sex,
                     birthDate: result.birthDate,
                     avatar: result.avatar,
+                    cloudinary_id: result.cloudinary_id,
                     role: result.role
                 }
             });
 
         } catch (error) {
-            // Xóa file mới nếu có lỗi
+            // Đảm bảo xóa file tạm nếu có lỗi
             if (req.file) {
-                // const filePath = path.join('public', 'uploads', req.file.filename);
-                // try {
-                //     await deleteFile(filePath);
-                // } catch (err) {
-                //     console.error('Error deleting file after error:', err);
-                // }
-
                 await deleteFile(req.file.path);
             }
 
