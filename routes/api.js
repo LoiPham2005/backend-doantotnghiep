@@ -41,6 +41,7 @@ router.post('/refresh-token', userController.refreshToken);
 
 //cập nhật thông tin user
 router.patch('/users/edit/:id', mdw.api_auth, upload.single('avatar'), userController.editUser);
+router.get('/users/getUserInfo/:id', mdw.api_auth, userController.getUserInfo);
 router.get('/users/getAdmin', mdw.api_auth, userController.getAdmin);
 router.put('/users/change-password/:id', mdw.api_auth, userController.changePassword);
 router.get('/users/search', mdw.api_auth, userController.searchUsers);

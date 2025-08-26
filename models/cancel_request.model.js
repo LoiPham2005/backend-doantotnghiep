@@ -9,6 +9,7 @@ const cancelRequestSchema = new Schema({
     },
     user_id: {
         type: Schema.Types.Mixed, // Cho phép cả ObjectId và string
+        ref: 'User',
         required: true
     },
     reason: {

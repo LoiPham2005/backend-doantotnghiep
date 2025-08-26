@@ -126,8 +126,9 @@ module.exports = {
             // Tạo mảng chứa danh sách yêu thích kèm variants
             const result = [];
 
+
             for (const fav of favourites) {
-                const variants = await ShoesVariant.find({ shoes_id: fav.shoes_id._id })
+                const variants = await ShoesVariant.find({ shoes_id: fav?.shoes_id?._id })
                     .populate('size_id')
                     .populate('color_id');
 

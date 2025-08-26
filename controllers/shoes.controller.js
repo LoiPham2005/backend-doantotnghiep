@@ -466,6 +466,7 @@ module.exports = {
     filterShoes: async (req, res) => {
         try {
             const {
+                keyword,
                 category_id,
                 brand_id,
                 size_value, // ✅ đổi từ size_id sang size_value
@@ -481,6 +482,25 @@ module.exports = {
 
             if (category_id) query.category_id = category_id;
             if (brand_id) query.brand_id = brand_id;
+            if (keyword) {
+                // Tìm brand và category có tên chứa keyword
+                const brands = await Brand.find({
+                    name: { $regex: keyword, $options: 'i' }
+                });
+                const categories = await Category.find({
+                    name: { $regex: keyword, $options: 'i' }
+                });
+
+                const brandIds = brands.map(brand => brand._id);
+                const categoryIds = categories.map(category => category._id);
+
+                query.$or = [
+                    { name: { $regex: keyword, $options: 'i' } }, // Tìm theo tên sản phẩm
+                    { description: { $regex: keyword, $options: 'i' } }, // Tìm theo mô tả
+                    { brand_id: { $in: brandIds } }, // Tìm theo thương hiệu
+                    { category_id: { $in: categoryIds } } // Tìm theo danh mục
+                ];
+            }
 
             // Tìm tất cả sản phẩm thỏa query
             let shoes = await Shoes.find(query)

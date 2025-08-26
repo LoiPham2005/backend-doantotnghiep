@@ -13,12 +13,12 @@ const generateAuthToken = (userId) => {
     const accessToken = jwt.sign(
         { id: userId },
         process.env.JWT_SECRET,
-        { expiresIn: '30d' }
+        { expiresIn: '1d' }
     );
     const refreshToken = jwt.sign(
         { id: userId },
         process.env.REFRESH_TOKEN_SECRET || 'refresh_secret_key',
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
     );
     return { accessToken, refreshToken };
 };
@@ -333,6 +333,33 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi server",
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy thông tin của user
+    getUserInfo: async (req, res) => {
+        try {
+            const userId = req.params.id;
+            const user = await md.findById(userId);
+            if (!user) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Không tìm thấy người dùng"
+                });
+            }
+
+            res.json({
+                status: 200,
+                message: "User found",
+                data: user
+            });
+        } catch (error) {
+            console.error("Error getting user:", error);
+            res.status(500).json({
+                status: 500,
+                message: "Error getting user",
                 error: error.message
             });
         }

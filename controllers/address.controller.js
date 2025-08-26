@@ -162,11 +162,12 @@ module.exports = {
             //     });
             // }
 
-            await Address.deleteOne({ _id: req.params.id });
+            const result = await Address.deleteOne({ _id: req.params.id });
 
             res.status(200).json({
                 status: 200,
-                message: "Xóa địa chỉ thành công"
+                message: "Xóa địa chỉ thành công",
+                data: result
             });
 
         } catch (error) {

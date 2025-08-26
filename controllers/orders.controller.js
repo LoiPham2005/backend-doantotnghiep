@@ -389,11 +389,13 @@ module.exports = {
 
             // Format orders và kiểm tra return request
             const formattedOrders = await Promise.all(orders.map(async order => {
-                // Kiểm tra có return request không
+                // Kiểm tra có return request không, bao gồm cả approved và rejected
                 const returnRequest = await ReturnRequest.findOne({
-                    order_id: order._id,
-                    status: 'pending'  // Chỉ lấy những request đang pending
+                    order_id: order._id
                 });
+
+                // Chỉ set has_return_request = true nếu có request và status là pending
+                const has_return_request = returnRequest && returnRequest.status === 'pending';
 
                 return {
                     _id: order._id,
@@ -408,7 +410,7 @@ module.exports = {
                     created_at: order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'N/A',
                     status: order.status,
                     momo_trans_id: order.momo_trans_id,
-                    has_return_request: !!returnRequest // Set dựa trên kết quả tìm kiếm
+                    has_return_request: has_return_request // Set dựa trên status của return request
                 };
             }));
 
