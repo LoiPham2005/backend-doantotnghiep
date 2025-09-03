@@ -11,3 +11,4 @@ public/uploads/*
 .vscode/
 
 node_modules/config/serviceAccountKey.json
+"config/serviceAccountKey.json"  
