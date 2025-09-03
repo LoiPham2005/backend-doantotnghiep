@@ -23,6 +23,10 @@ const Users = new Schema({
     is_active: {
         type: Boolean,
         default: true
+    },
+    fcmToken: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true,

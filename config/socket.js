@@ -132,6 +132,23 @@ function initializeSocket(server) {
       }
     });
 
+    // Add new event for account status changes
+    socket.on('join account status', (userId) => {
+      console.log(`User ${userId} joined account status room`);
+      socket.join(`account_${userId}`);
+    });
+
+    // Add to exports so other controllers can use
+    io.accountStatus = {
+      emitStatusChange: ({ userId, isActive, message }) => {
+        io.to(`account_${userId}`).emit('account_status_changed', {
+          isActive,
+          message,
+          timestamp: new Date()
+        });
+      }
+    };
+
     socket.on('disconnect', () => {
       if (socket.userId) {
         connectedUsers.delete(socket.userId);

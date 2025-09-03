@@ -1,6 +1,7 @@
 const Notification = require('../models/notification.model');
 const NotificationUser = require('../models/notification_user.model');
 const User = require('../models/user.model');
+const { sendPushNotification } = require('./pushNotification.controller');
 
 module.exports = {
     // Tạo thông báo mới (admin only)
@@ -70,6 +71,34 @@ module.exports = {
                             notification: userNotification
                         });
                     }
+                }
+            }
+
+            // Gửi push notification cho các user được chọn
+            if (type === 'order' && selectedUsers?.length > 0) {
+                for (const userId of selectedUsers) {
+                    await sendPushNotification(
+                        userId,
+                        title,
+                        content,
+                        {
+                            type: 'notification',
+                            notification_id: savedNotification._id.toString()
+                        }
+                    );
+                }
+            } else if (type === 'system' || type === 'promotion') {
+                const users = await User.find({ role: 'user' });
+                for (const user of users) {
+                    await sendPushNotification(
+                        user._id,
+                        title,
+                        content,
+                        {
+                            type: 'notification',
+                            notification_id: savedNotification._id.toString()
+                        }
+                    );
                 }
             }
 

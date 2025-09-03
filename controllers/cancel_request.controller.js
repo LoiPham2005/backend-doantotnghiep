@@ -54,7 +54,7 @@ module.exports = {
             // Tạo thông báo
             const notification = new Notification({
                 title: 'Đơn hàng đã bị hủy',
-                content: `Đơn hàng #${order._id.toString().slice(-6)} đã bị hủy. ${is_admin_cancel ? 'Lý do từ admin: ' : 'Lý do: '}${reason}`,
+                content: `Đơn hàng #${order._id} đã bị hủy. ${is_admin_cancel ? 'Lý do từ admin: ' : 'Lý do: '}${reason}`,
                 type: 'order'
             });
 

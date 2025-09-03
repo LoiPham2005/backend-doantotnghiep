@@ -14,15 +14,16 @@ const CancelRequest = require('../models/cancel_request.model');
 const ReturnRequest = require('../models/return_request.model');
 const Review = require('../models/reviews.model');
 const { createNotification } = require('./notification.controller');
+const { sendPushNotification } = require('./pushNotification.controller');
 
 
 // Hàm tạo thông báo đơn hàng mới
 const createOrderNotification = async (order) => {
     try {
-        // Tạo thông báo mới
+        // Tạo thông báo mới với full order ID
         const newNotification = new Notification({
             title: 'Đơn hàng mới',
-            content: `Có đơn hàng mới #${order._id.toString().slice(-6)} cần xử lý`,
+            content: `Có đơn hàng mới #${order._id} cần xử lý`, // Gửi full order ID
             type: 'order',
             createdAt: new Date()
         });
@@ -32,7 +33,6 @@ const createOrderNotification = async (order) => {
         // Chỉ tạo thông báo cho admin
         const admins = await User.find({ role: 'admin' });
         if (admins && admins.length > 0) {
-            // Tạo mảng thông báo cho admin
             const adminNotifications = admins.map(admin => ({
                 notification_id: savedNotification._id,
                 user_id: admin._id,
@@ -40,14 +40,7 @@ const createOrderNotification = async (order) => {
                 received_at: new Date()
             }));
 
-            // Thêm unique index để tránh duplicate
-            await NotificationUser.collection.createIndex(
-                { notification_id: 1, user_id: 1 },
-                { unique: true }
-            );
-
-            // Lưu thông báo chỉ cho admin
-            await NotificationUser.insertMany(adminNotifications, { ordered: false });
+            await NotificationUser.insertMany(adminNotifications);
         }
 
     } catch (error) {
@@ -565,7 +558,7 @@ module.exports = {
         try {
             const { status } = req.body;
             const order = await Order.findById(req.params.id)
-                .populate('user_id', 'username email');
+                .populate('user_id', 'username email fcmToken');
 
             if (!order) {
                 return res.status(404).json({
@@ -600,8 +593,8 @@ module.exports = {
             order.set(updateData);
             await order.save();
 
-            // Tạo nội dung thông báo
-            const notificationTitle = `Cập nhật đơn hàng #${order._id.toString().slice(-6)}`;
+            // Tạo nội dung thông báo với full order ID
+            const notificationTitle = `Cập nhật đơn hàng #${order._id}`;
             let notificationContent = '';
 
             switch (status) {
@@ -625,18 +618,17 @@ module.exports = {
             }
 
             // Tạo notification trong DB
-            const newNotification = new Notification({
+            const notification = new Notification({
                 title: notificationTitle,
                 content: notificationContent,
-                type: 'order',
-                createdAt: new Date()
+                type: 'order'
             });
 
-            const savedNotification = await newNotification.save();
+            await notification.save();
 
             // Tạo notification cho user
             const notificationUser = await NotificationUser.create({
-                notification_id: savedNotification._id,
+                notification_id: notification._id,
                 user_id: order.user_id._id,
                 is_read: false
             });
@@ -648,20 +640,29 @@ module.exports = {
                     select: 'title content type createdAt'
                 });
 
-            // Gửi notification qua socket
+            // Gửi socket event
             const io = req.app.get('io');
             if (io) {
-                // Emit event thông báo mới
                 io.to(`notification_${order.user_id._id}`).emit('notification_received', {
                     notification: populatedNotification
                 });
-
-                // Emit event cập nhật trạng thái đơn hàng
                 io.to(`order_${order.user_id._id}`).emit('order_status_updated', {
-                    orderId: order._id,
+                    orderId: order._id, // Gửi full order ID
                     status: status
                 });
             }
+
+            // Gửi push notification cho user
+            await sendPushNotification(
+                order.user_id._id,
+                notificationTitle,
+                notificationContent,
+                {
+                    type: 'order',
+                    order_id: order._id.toString(), // Gửi full order ID
+                    status: status
+                }
+            );
 
             res.status(200).json({
                 status: 200,

@@ -1,12 +1,11 @@
-// Thêm import jwt ở đầu file
 const jwt = require('jsonwebtoken');
 const md = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const User = require('../models/user.model');
 const path = require('path');
 const fs = require('fs');
-// const { createFileUrl, deleteFile } = require('../utils/fileUtils');
 const { uploadToCloudinary, deleteFromCloudinary, deleteFile } = require('../utils/fileUtils');
+const { sendPushNotification } = require('./pushNotification.controller'); // Thêm dòng này
 
 // tạo toekn mới
 const generateAuthToken = (userId) => {
@@ -489,6 +488,35 @@ module.exports = {
             user.is_active = !user.is_active;
             await user.save();
 
+            // Lấy socket instance
+            const io = req.app.get('io');
+
+            if (io?.accountStatus) {
+                // Emit event thay đổi trạng thái
+                io.accountStatus.emitStatusChange({
+                    userId: user._id,
+                    isActive: user.is_active,
+                    message: user.is_active ?
+                        'Tài khoản của bạn đã được kích hoạt lại' :
+                        'Tài khoản của bạn đã bị vô hiệu hóa'
+                });
+            }
+
+            // Gửi push notification nếu user có fcmToken
+            // if (user.fcmToken) {
+            //     await sendPushNotification(
+            //         user._id,
+            //         'Trạng thái tài khoản',
+            //         user.is_active ?
+            //             'Tài khoản của bạn đã được kích hoạt lại' :
+            //             'Tài khoản của bạn đã bị vô hiệu hóa',
+            //         {
+            //             type: 'account_status',
+            //             isActive: user.is_active
+            //         }
+            //     );
+            // }
+
             res.status(200).json({
                 status: 200,
                 message: `Tài khoản đã được ${user.is_active ? 'kích hoạt' : 'vô hiệu hóa'}`,
@@ -503,6 +531,25 @@ module.exports = {
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi thay đổi trạng thái tài khoản",
+                error: error.message
+            });
+        }
+    },
+
+    updateFcmToken: async (req, res) => {
+        try {
+            const { userId, fcmToken } = req.body;
+
+            await User.findByIdAndUpdate(userId, { fcmToken });
+
+            res.status(200).json({
+                status: 200,
+                message: "FCM token updated successfully"
+            });
+        } catch (error) {
+            res.status(500).json({
+                status: 500,
+                message: "Error updating FCM token",
                 error: error.message
             });
         }

@@ -31,6 +31,7 @@ const aiController = require('../controllers/aiSuggest.controller');
 const aiController2 = require('../controllers/ai_suggest_openrouter.controller');
 const cancelRequestController = require('../controllers/cancel_request.controller');
 const zalopay = require('../controllers/zalopay.controller');
+const shippingController = require("../controllers/shipping.controller");
 
 // đăng kí , đăng nhập
 router.post('/users/login', userController.login);
@@ -46,6 +47,7 @@ router.get('/users/getAdmin', mdw.api_auth, userController.getAdmin);
 router.put('/users/change-password/:id', mdw.api_auth, userController.changePassword);
 router.get('/users/search', mdw.api_auth, userController.searchUsers);
 router.put('/users/toggle-active/:id', mdw.api_auth, userController.toggleUserActive);
+router.put('/users/fcm-token', mdw.api_auth, userController.updateFcmToken);
 
 // quên mật khẩu
 router.post('/check/sendOtp', forgotPassword.sendOtp);
@@ -259,5 +261,15 @@ router.delete('/cancel-requests/:id', mdw.api_auth, cancelRequestController.dele
 // Thanh toán ZaloPay
 router.post('/zalopay/create', mdw.api_auth, zalopay.createPayment);
 router.post('/zalopay/callback', zalopay.handleCallback);
+
+
+// CRUD phí vận chuyển (Admin)
+router.get("/shipping/list", shippingController.getAllRates);
+router.post("/shipping/add", shippingController.addRate);
+router.put("/shipping/edit/:id", shippingController.updateRate);
+router.delete("/shipping/delete/:id", shippingController.deleteRate);
+
+// API tính phí vận chuyển
+router.get("/shipping/calculate", shippingController.calculateShippingFee);
 
 module.exports = router;
