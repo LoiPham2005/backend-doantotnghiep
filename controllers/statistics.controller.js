@@ -9,7 +9,7 @@ module.exports = {
         try {
             const { startDate, endDate } = req.query;
             const dateQuery = {};
-            
+
             if (startDate && endDate) {
                 dateQuery.createdAt = {
                     $gte: new Date(startDate),
@@ -34,13 +34,13 @@ module.exports = {
                 ...dateQuery,
                 status: { $in: ['delivered', 'received'] }
             });
-            const totalRevenue = completedOrders.reduce((sum, order) => 
+            const totalRevenue = completedOrders.reduce((sum, order) =>
                 sum + order.final_total, 0
             );
 
             // Calculate percentage changes compared to previous period
             const previousStart = new Date(startDate);
-            previousStart.setDate(previousStart.getDate() - 
+            previousStart.setDate(previousStart.getDate() -
                 (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)
             );
             const previousEnd = new Date(startDate);
@@ -73,12 +73,12 @@ module.exports = {
             ]);
 
             // Calculate changes
-            const ordersChange = previousPeriodOrders === 0 
+            const ordersChange = previousPeriodOrders === 0
                 ? 100
                 : ((totalOrders - previousPeriodOrders) / previousPeriodOrders * 100).toFixed(1);
 
-            const revenueChange = previousPeriodRevenue.length === 0 
-                ? 100 
+            const revenueChange = previousPeriodRevenue.length === 0
+                ? 100
                 : ((totalRevenue - previousPeriodRevenue[0].total) / previousPeriodRevenue[0].total * 100).toFixed(1);
 
             res.status(200).json({
@@ -104,49 +104,151 @@ module.exports = {
         }
     },
 
+    // getRevenueByDateRange: async (req, res) => {
+    //     try {
+    //         const { startDate, endDate } = req.query;
+    //         const query = {
+    //             status: { $in: ['delivered', 'received'] }
+    //         };
+
+    //         if (startDate && endDate) {
+    //             query.createdAt = {
+    //                 $gte: new Date(startDate),
+    //                 $lte: new Date(endDate)
+    //             };
+    //         }
+
+    //         // Group theo ngày và tính tổng doanh thu
+    //         const revenue = await Order.aggregate([
+    //             { $match: query },
+    //             {
+    //                 $group: {
+    //                     _id: {
+    //                         date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
+    //                     },
+    //                     totalRevenue: { $sum: "$final_total" },
+    //                     orderCount: { $sum: 1 }
+    //                 }
+    //             },
+    //             { $sort: { "_id.date": 1 } }
+    //         ]);
+
+    //         // Format lại dữ liệu để trả về
+    //         const formattedRevenue = revenue.map(item => ({
+    //             date: item._id.date,
+    //             totalRevenue: item.totalRevenue,
+    //             orderCount: item.orderCount
+    //         }));
+
+    //         res.status(200).json({
+    //             status: 200,
+    //             message: "Thống kê doanh thu theo ngày",
+    //             data: formattedRevenue
+    //         });
+
+    //     } catch (error) {
+    //         res.status(500).json({
+    //             status: 500,
+    //             message: "Lỗi khi lấy thống kê doanh thu",
+    //             error: error.message
+    //         });
+    //     }
+    // },
+
+
     getRevenueByDateRange: async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
-            const query = {
-                status: { $in: ['delivered', 'received'] }
-            };
+            // const query = {
+            //     status: { $in: ['delivered'] }
+            // };
+            // const start = new Date(startDate);
+            // const end = new Date(endDate);
 
-            if (startDate && endDate) {
-                query.createdAt = {
+            // query.createdAt = {
+            //     $gte: start,
+            //     $lte: end
+            // };
+
+            // Chỉ lấy đơn đã giao thành công và có delivery_date
+            const query = {
+                status: 'delivered',
+                delivery_date: {
+                    $exists: true,
+                    $ne: null,
                     $gte: new Date(startDate),
                     $lte: new Date(endDate)
-                };
-            }
+                }
+            };
 
-            // Group theo ngày và tính tổng doanh thu
+            // Xử lý timezone - chuyển về đầu ngày và cuối ngày theo giờ VN
+            // if (startDate && endDate) {
+            //     const start = new Date(startDate);
+            //     start.setHours(0, 0, 0, 0);
+            //     // Trừ đi 7 tiếng để đảm bảo lấy từ 00:00 giờ VN
+            //     start.setHours(start.getHours() - 7);
+
+            //     const end = new Date(endDate);
+            //     end.setHours(23, 59, 59, 999);
+            //     // Trừ đi 7 tiếng để đảm bảo lấy đến 23:59:59 giờ VN
+            //     end.setHours(end.getHours() - 7);
+
+            //     query.createdAt = {
+            //         $gte: start,
+            //         $lte: end
+            //     };
+            // }
+
+
+
+            console.log('Query:', JSON.stringify(query, null, 2));
+
             const revenue = await Order.aggregate([
                 { $match: query },
                 {
+                    $addFields: {
+                        // Convert sang timezone VN trước khi group
+                        localDate: {
+                            $dateToString: {
+                                format: "%Y-%m-%d",
+                                //  date: "$createdAt",
+                                date: "$delivery_date",
+                                timezone: "Asia/Ho_Chi_Minh"
+                            }
+                        }
+                    }
+                },
+                {
                     $group: {
-                        _id: {
-                            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
-                        },
+                        _id: "$localDate",
                         totalRevenue: { $sum: "$final_total" },
                         orderCount: { $sum: 1 }
                     }
                 },
-                { $sort: { "_id.date": 1 } }
+                {
+                    $project: {
+                        _id: 0,
+                        date: "$_id",
+                        totalRevenue: 1,
+                        orderCount: 1
+                    }
+                },
+                {
+                    $sort: { "date": 1 }
+                }
             ]);
 
-            // Format lại dữ liệu để trả về
-            const formattedRevenue = revenue.map(item => ({
-                date: item._id.date,
-                totalRevenue: item.totalRevenue,
-                orderCount: item.orderCount
-            }));
+            // Log để debug
+            console.log('Raw Revenue Data:', JSON.stringify(revenue, null, 2));
 
             res.status(200).json({
                 status: 200,
                 message: "Thống kê doanh thu theo ngày",
-                data: formattedRevenue
+                data: revenue
             });
 
         } catch (error) {
+            console.error('Error getting revenue stats:', error);
             res.status(500).json({
                 status: 500,
                 message: "Lỗi khi lấy thống kê doanh thu",

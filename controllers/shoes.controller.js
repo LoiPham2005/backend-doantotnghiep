@@ -712,7 +712,7 @@ module.exports = {
             const shoes = await Shoes.find(query)
                 .populate('brand_id')
                 .populate('category_id')
-                .sort({ createdAt: -1 })
+                .sort({ created_at: -1 })
                 .skip(skip)
                 .limit(limit);
 
@@ -803,7 +803,7 @@ module.exports = {
             // Get shoes with pagination
             const shoes = await Shoes.find(query)
                 .populate('brand_id')
-                .sort({ createdAt: -1 })
+                .sort({ created_at: -1 })
                 .skip(skip)
                 .limit(limit);
 
@@ -1031,7 +1031,7 @@ module.exports = {
             const shoes = await Shoes.find(query)
                 .populate('brand_id')
                 .populate('category_id')
-                .sort({ createdAt: -1 })
+                .sort({ created_at: -1 })
                 .skip(skip)
                 .limit(limit);
 
