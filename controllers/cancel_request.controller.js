@@ -275,8 +275,7 @@ module.exports = {
                         path: 'user_id',
                         select: 'username email'
                     }
-                })
-                .populate('user_id', 'username email');
+                });
 
             if (!cancelRequest) {
                 return res.status(404).json({
@@ -289,13 +288,22 @@ module.exports = {
             const formattedResponse = {
                 _id: cancelRequest._id,
                 order_id: cancelRequest.order_id._id,
-                user: {
-                    _id: cancelRequest.user_id._id,
-                    username: cancelRequest.user_id.username,
-                    email: cancelRequest.user_id.email
-                },
+                // Kiểm tra nếu user_id là string (admin) hoặc ObjectId
+                user: 
+                // cancelRequest.user_id === 'admin' ? 
+                //     {
+                //         _id: 'admin',
+                //         username: 'Admin',
+                //         email: 'admin@example.com'
+                //     } : 
+                    {
+                        _id: cancelRequest.order_id.user_id._id,
+                        username: cancelRequest.order_id.user_id.username,
+                        email: cancelRequest.order_id.user_id.email
+                    },
                 reason: cancelRequest.reason,
                 status: cancelRequest.status,
+                is_admin_cancel: cancelRequest.is_admin_cancel,
                 createdAt: cancelRequest.createdAt,
                 updatedAt: cancelRequest.updatedAt
             };
