@@ -10,5 +10,4 @@ public/uploads/*
 .env.production
 .vscode/
 
-node_modules/config/serviceAccountKey.json
-"config/serviceAccountKey.json"  
+node_modules/
